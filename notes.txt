@@ -1,3 +1,5 @@
+-------------------------------------------------------------------------------------------------------------------------
+SETUP A NEW PROJECT (GUIDE)
 git init
 git remote origin 
 link to chatgpt guide on initializing git https://chatgpt.com/c/67f8daf4-34d8-8008-8289-688bf43607be
@@ -13,3 +15,37 @@ The migrations directory will contain the SQL migration files for our database.
 The remote directory will contain the configuration files and setup scripts for our production server.
 The go.mod file will declare our project dependencies, versions and module path.
 The Makefile will contain recipes for automating common administrative tasks — like auditing our Go code, building binaries, and executing database migrations.
+
+git status
+git add . //from master branch
+git push -u origin main
+
+-------------------------------------------------------------------------------------------------------------------------
+the server object returned by http.Server accepts a handler, this tells it the handler to call for all incoming requests,
+the server listens on the port specified in its addr property and routes all requests received on this port to the handler
+passed to the Handler property. The difference between this and http.listenAndServe is the http.Server allows us to define 
+extra configuration for our server. The http.ListenAndServe uses default configurations for our server. The difference is
+all in the granularity. The API confirms my theory.
+func ListenAndServe(addr string, handler Handler) error {
+	server := &Server{Addr: addr, Handler: handler}
+	return server.ListenAndServe()
+}
+-------------------------------------------------------------------------------------------------------------------------
+mux satisfies the handler interface, when the server receives a request on a port, it calls the servehttp method of mux.
+the mux doesn't do anything with the request or response in particular, it simply calls a function, mux.Handler which 
+takes the request as a parameter and returns the appropriate handler for the received request
+-------------------------------------------------------------------------------------------------------------------------
+API VERSIONING
+APIs which support real-world businesses and users often need to change their functionality and endpoints over time — 
+sometimes in a backwards-incompatible way. So, to avoid problems and confusion for clients, it’s a good idea to always 
+implement some form of API versioning.There are two common approaches to doing this: 
+
+1) By prefixing all URLs with your API version, like /v1/healthcheck or /v2/healthcheck.
+2) By using custom Accept and Content-Type headers on requests and responses to convey the API version, like 
+Accept: application/vnd.greenlight-v1.
+
+From a HTTP semantics point of view, using headers to convey the API version is the ‘purer’ approach. But from a 
+user-experience point of view, using a URL prefix is arguably better. It makes it possible for developers to see which 
+version of the API is being used at a glance, and it also means that the API can still be explored using a regular web 
+browser (which is harder if custom headers are required).
+-------------------------------------------------------------------------------------------------------------------------
