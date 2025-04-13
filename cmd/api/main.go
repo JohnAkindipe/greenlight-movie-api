@@ -62,16 +62,10 @@ func main() {
 		logger: logger,
 	}
 /*********************************************************************************************************************/
-	// MUX SETUP
-	// Declare a new servemux and add a /v1/healthcheck route which dispatches requests
-    // to the healthcheckHandler method (which we will create in a moment).	
-	muxPtr := http.NewServeMux()
-	muxPtr.HandleFunc("/v1/healthcheck", appPtr.healthcheckHandler)
-/*********************************************************************************************************************/
 	// SERVER SETUP
 	srvPtr := &http.Server{
 		Addr: fmt.Sprintf(":%d", cfg.port),
-		Handler: muxPtr,
+		Handler: appPtr.routes(),
 		IdleTimeout: time.Minute,
 		ReadTimeout: 5 * time.Second,
 		WriteTimeout: 10 * time.Second,

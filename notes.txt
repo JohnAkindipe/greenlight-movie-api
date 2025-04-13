@@ -49,3 +49,17 @@ user-experience point of view, using a URL prefix is arguably better. It makes i
 version of the API is being used at a glance, and it also means that the API can still be explored using a regular web 
 browser (which is harder if custom headers are required).
 -------------------------------------------------------------------------------------------------------------------------
+CONFLICTING RULES
+It’s important to be aware that httprouter doesn’t allow conflicting routes which potentially match the same request. So, 
+for example, you cannot register a route like GET /foo/new and another route with a parameter segment that conflicts with 
+it — like GET /foo/:id.
+
+If you’re using a standard REST structure for your API endpoints — like we will be in this book — then this restriction 
+is unlikely to cause you many problems. In fact, it’s arguably a positive thing. Because conflicting routes aren’t allowed,
+there are no routing-priority rules that you need to worry about, and it reduces the risk of bugs and unintended behavior 
+in your application.
+
+But if you do need to support conflicting routes (for example, you might need to replicate the endpoints of an existing 
+API exactly for backwards-compatibility), then I would recommend taking a look at chi, Gorilla mux or flow instead. 
+All of these are good routers which do permit conflicting routes.
+-------------------------------------------------------------------------------------------------------------------------
