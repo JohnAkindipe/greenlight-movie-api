@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 )
 
@@ -15,32 +14,23 @@ in the application struct when we initialize it in main().
 HANDLES GET /v1/healthcheck
 */
 func (appPtr *application) healthcheckHandler (w http.ResponseWriter, r *http.Request) {
-	/*
-	//MY ATTEMPT to send JSON data
+/*********************************************************************************************************************/
+	//USING JSON MARSHALLING
 	data := map[string]string{
 		"status": "available",
 		"version": version,
 		"environment": appPtr.config.env,
 	}
 
-	jsonData, err := json.Marshal(data)
+	// headers := map[string][]string {
+	// 	"Content-Type": {"application/json"},
+	// }
 
+	// Pass the map to the app.writeJSON method. If there was an error, we log it and send the client
+    // a generic error message.
+	err := appPtr.writeJSON(w, http.StatusOK, data, nil)
 	if err != nil {
-		fmt.Printf("error marshaling data: %s/n", err)
+		appPtr.logger.Error(err.Error())
+		http.Error(w, "The server encountered a problem and could not process your request", http.StatusInternalServerError)
 	}
-
-	w.Write(jsonData)
-	*/
-	// Set the "Content-Type: application/json" header on the response. If you forget to
-    // this, Go will default to sending a "Content-Type: text/plain; charset=utf-8"
-    // header instead.
-	w.Header().Set("Content-Type", "application/json")
-
-	// Create a fixed-format JSON response from a string. Notice how we're using a raw
-    // string literal (enclosed with backticks) so that we can include double-quote 
-    // characters in the JSON without needing to escape them? We also use the %q verb to 
-    // wrap the interpolated values in double-quotes.
-	js := `{"status": "available", "environment": %q, "version": %q}`
-    js = fmt.Sprintf(js, appPtr.config.env, version)
-	w.Write([]byte(js))
 }

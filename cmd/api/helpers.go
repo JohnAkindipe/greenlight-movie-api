@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -46,4 +47,37 @@ func (appPtr *application) readIDParam(r *http.Request) (int64, error) {
     }
 
     return id, nil
+}
+/*********************************************************************************************************************/
+//WRITE JSON HELPER
+func (appPtr *application) writeJSON(w http.ResponseWriter, status int, data any, headers http.Header) error {
+
+    jsonData, err := json.Marshal(data)
+    if err != nil {
+        return err
+    }
+    // Append a newline to the JSON. This is just a small nicety to make it easier to 
+    // view in terminal applications.
+	jsonData = append(jsonData, '\n')
+
+	for key, value := range headers {
+        w.Header()[key] = value
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(status)
+	w.Write(jsonData)
+
+    return nil
+/*********************************************************************************************************************/
+	/*
+	USING FIXED-FORMAT JSON
+	// Create a fixed-format JSON response from a string. Notice how we're using a raw
+    // string literal (enclosed with backticks) so that we can include double-quote 
+    // characters in the JSON without needing to escape them? We also use the %q verb to 
+    // wrap the interpolated values in double-quotes.
+	js := `{"status": "available", "environment": %q, "version": %q}`
+    js = fmt.Sprintf(js, appPtr.config.env, version)
+	w.Write([]byte(js))
+	*/
 }
