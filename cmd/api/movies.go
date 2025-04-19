@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"greenlight-movie-api/internal/data"
 	"net/http"
+	"time"
 )
 
 /*********************************************************************************************************************/
@@ -22,6 +24,21 @@ func (appPtr *application) showMovieHandler (w http.ResponseWriter, r *http.Requ
         return
     }
 
-    // Otherwise, interpolate the movie ID in a placeholder response.
-    fmt.Fprintf(w, "show the details of movie %d\n", id)
+    //instantiate a movie type, we'll probably be pulling this data from a database later.
+    movie := data.Movie{
+        ID: id,
+        Title: "Casablanca",
+        Runtime: 102,
+        Genres: []string{"drama", "romance", "war"},
+        Version: 1,
+        CreatedAt: time.Now(),
+    }
+
+    err = appPtr.writeJSON(w, http.StatusOK, movie, nil) //marshal the movie data into json and send to the client
+
+    //Respond with an error if we encountered an error marshalling the movie data into valid json
+    if err != nil {
+        appPtr.logger.Error(err.Error())
+        http.Error(w, "We encountered a problem in our server", http.StatusInternalServerError)
+    }
 }
