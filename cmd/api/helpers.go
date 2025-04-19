@@ -25,9 +25,10 @@ func getNamedParam(name string, r *http.Request) string {
 	return param
 }
 /*********************************************************************************************************************/
+// RETRIEVE THE ID URL PARAMETER FROM THE CURRENT REQUEST CONTEXT
 // Retrieve the "id" URL parameter from the current request context, then convert it to
 // an integer and return it. If the operation isn't successful, return 0 and an error. 
-func (app *application) readIDParam(r *http.Request) (int64, error) {
+func (appPtr *application) readIDParam(r *http.Request) (int64, error) {
 	// When httprouter is parsing a request, any interpolated URL parameters will be
     // stored in the request context. We can use the ParamsFromContext() function to
     // retrieve a slice containing these parameter names and values

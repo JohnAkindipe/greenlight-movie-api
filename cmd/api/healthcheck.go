@@ -15,7 +15,32 @@ in the application struct when we initialize it in main().
 HANDLES GET /v1/healthcheck
 */
 func (appPtr *application) healthcheckHandler (w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "status: available")
-	fmt.Fprintf(w, "version: %s\n", version)
-	fmt.Fprintf(w, "environment: %s\n", appPtr.config.env)
+	/*
+	//MY ATTEMPT to send JSON data
+	data := map[string]string{
+		"status": "available",
+		"version": version,
+		"environment": appPtr.config.env,
+	}
+
+	jsonData, err := json.Marshal(data)
+
+	if err != nil {
+		fmt.Printf("error marshaling data: %s/n", err)
+	}
+
+	w.Write(jsonData)
+	*/
+	// Set the "Content-Type: application/json" header on the response. If you forget to
+    // this, Go will default to sending a "Content-Type: text/plain; charset=utf-8"
+    // header instead.
+	w.Header().Set("Content-Type", "application/json")
+
+	// Create a fixed-format JSON response from a string. Notice how we're using a raw
+    // string literal (enclosed with backticks) so that we can include double-quote 
+    // characters in the JSON without needing to escape them? We also use the %q verb to 
+    // wrap the interpolated values in double-quotes.
+	js := `{"status": "available", "environment": %q, "version": %q}`
+    js = fmt.Sprintf(js, appPtr.config.env, version)
+	w.Write([]byte(js))
 }
