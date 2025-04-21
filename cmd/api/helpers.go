@@ -10,6 +10,10 @@ import (
 )
 
 /*********************************************************************************************************************/
+// CUSTOM TYPE TO ENVELOPE RESPONSES
+type envelope map[string]any
+
+/*********************************************************************************************************************/
 //HELPER TO EXTRACT NAMED PARAMETERS FROM A REQUEST
 
 func getNamedParam(name string, r *http.Request) string {
@@ -50,15 +54,15 @@ func (appPtr *application) readIDParam(r *http.Request) (int64, error) {
 }
 /*********************************************************************************************************************/
 //WRITE JSON HELPER
-func (appPtr *application) writeJSON(w http.ResponseWriter, status int, data any, headers http.Header) error {
+func (appPtr *application) writeJSON(w http.ResponseWriter, status int, wrappedData envelope, headers http.Header) error {
 
-    jsonData, err := json.Marshal(data)
+    wrappedJSONData, err := json.MarshalIndent(wrappedData, "", "\t")
     if err != nil {
         return err
     }
     // Append a newline to the JSON. This is just a small nicety to make it easier to 
     // view in terminal applications.
-	jsonData = append(jsonData, '\n')
+	wrappedJSONData = append(wrappedJSONData, '\n')
 
 	for key, value := range headers {
         w.Header()[key] = value
@@ -66,7 +70,8 @@ func (appPtr *application) writeJSON(w http.ResponseWriter, status int, data any
 
     w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(status)
-	w.Write(jsonData)
+	// w.Write(jsonData)
+    w.Write(wrappedJSONData)
 
     return nil
 /*********************************************************************************************************************/

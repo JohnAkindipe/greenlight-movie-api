@@ -16,10 +16,13 @@ HANDLES GET /v1/healthcheck
 func (appPtr *application) healthcheckHandler (w http.ResponseWriter, r *http.Request) {
 /*********************************************************************************************************************/
 	//USING JSON MARSHALLING
-	data := map[string]string{
+	//wrap the data with the envelope
+	wrappedData := envelope{ 
 		"status": "available",
-		"version": version,
-		"environment": appPtr.config.env,
+		"system_info": map[string]string{
+			"version": version,
+			"environment": appPtr.config.env,
+		},
 	}
 
 	// headers := map[string][]string {
@@ -28,7 +31,7 @@ func (appPtr *application) healthcheckHandler (w http.ResponseWriter, r *http.Re
 
 	// Pass the map to the app.writeJSON method. If there was an error, we log it and send the client
     // a generic error message.
-	err := appPtr.writeJSON(w, http.StatusOK, data, nil)
+	err := appPtr.writeJSON(w, http.StatusOK, wrappedData, nil)
 	if err != nil {
 		appPtr.logger.Error(err.Error())
 		http.Error(w, "The server encountered a problem and could not process your request", http.StatusInternalServerError)

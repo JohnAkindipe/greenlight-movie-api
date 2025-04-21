@@ -34,7 +34,10 @@ func (appPtr *application) showMovieHandler (w http.ResponseWriter, r *http.Requ
         CreatedAt: time.Now(),
     }
 
-    err = appPtr.writeJSON(w, http.StatusOK, movie, nil) //marshal the movie data into json and send to the client
+    //wrap the movie data with the string "movie"
+    wrappedMovieData := envelope{ "movie": movie }
+
+    err = appPtr.writeJSON(w, http.StatusOK, wrappedMovieData, nil) //marshal the movie data into json and send to the client
 
     //Respond with an error if we encountered an error marshalling the movie data into valid json
     if err != nil {
