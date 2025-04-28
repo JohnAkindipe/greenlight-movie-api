@@ -36,5 +36,6 @@ endpoint
 	routerPtr.HandlerFunc(http.MethodGet, "/v1/movies/:id", appPtr.showMovieHandler)
 
 	//return the http handler
-	return routerPtr
+	// wrap the routerPtr inside the recoverPanic middleware
+	return appPtr.recoverPanic(routerPtr)
 }
