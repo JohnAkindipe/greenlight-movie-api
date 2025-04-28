@@ -12,6 +12,14 @@ import (
 func (appPtr *application) routes() http.Handler {
 	// routerptr is an object that satisfies the http.Handler interface by defining a servehttp method
 	routerPtr := httprouter.New()
+
+	// register the notFoundResponse helper as the default handler for 
+	// requests that could not be matched to any path
+	routerPtr.NotFound = http.HandlerFunc(appPtr.notFoundHandler)
+	// register the methodNotAllowedResponse helper as the default handler for 
+	// requests to a path with methods that the path doesn't allow (e.g a POST
+	// request to "healthcheck")
+	routerPtr.MethodNotAllowed = http.HandlerFunc(appPtr.methodNotAllowedHandler)
 /* 
 the handlerfunc will register the function to call for a specific type of request to a particular
 endpoint

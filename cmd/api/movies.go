@@ -20,7 +20,8 @@ func (appPtr *application) showMovieHandler (w http.ResponseWriter, r *http.Requ
 	//Get the value of the named parameter "id" from the request
     id, err := appPtr.readIDParam(r)
     if err != nil {
-        http.NotFound(w, r)
+        //let the client know we could not find a movie with the provided id parameter
+        appPtr.notFoundHandler(w, r)
         return
     }
 
@@ -41,7 +42,9 @@ func (appPtr *application) showMovieHandler (w http.ResponseWriter, r *http.Requ
 
     //Respond with an error if we encountered an error marshalling the movie data into valid json
     if err != nil {
-        appPtr.logger.Error(err.Error())
-        http.Error(w, "We encountered a problem in our server", http.StatusInternalServerError)
+        //log error and send json-formatted error to client
+        //log error if unable to format error to json and send empty response with
+        //code 500 to client
+        appPtr.serverErrorResponse(w, r, err)
     }
 }

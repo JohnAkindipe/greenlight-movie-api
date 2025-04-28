@@ -33,7 +33,7 @@ func (appPtr *application) healthcheckHandler (w http.ResponseWriter, r *http.Re
     // a generic error message.
 	err := appPtr.writeJSON(w, http.StatusOK, wrappedData, nil)
 	if err != nil {
-		appPtr.logger.Error(err.Error())
-		http.Error(w, "The server encountered a problem and could not process your request", http.StatusInternalServerError)
+		// send json-formatted error to client
+		appPtr.serverErrorResponse(w, r, err)
 	}
 }

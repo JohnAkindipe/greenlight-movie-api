@@ -64,6 +64,8 @@ func (appPtr *application) writeJSON(w http.ResponseWriter, status int, wrappedD
     // view in terminal applications.
 	wrappedJSONData = append(wrappedJSONData, '\n')
 
+    // range over the headers parameter and set the response headers as specified
+    // in the header parameter
 	for key, value := range headers {
         w.Header()[key] = value
     }
