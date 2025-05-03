@@ -14,6 +14,8 @@ when our program tries to marshal any data represented as the runtime type into 
 */
 type Runtime int32
 
+// var a json.Unmarshaler
+
 /*********************************************************************************************************************/
 /*CUSTOM MARSHALJSON FUNC*/
 func (r Runtime) MarshalJSON() ([]byte, error) {
