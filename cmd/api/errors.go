@@ -86,3 +86,14 @@ func (appPtr *application) methodNotAllowedHandler(w http.ResponseWriter, r *htt
 	msg := fmt.Sprintf("the %s method is not allowed for this resource", r.Method)
 	appPtr.errorResponse(w, r, http.StatusMethodNotAllowed, msg)
 }
+
+/*********************************************************************************************************************/
+//BAD REQUEST RESPONSE
+/*
+This is merely a wrapper round the error response, but we know that we are sending a badrequest response
+when we use this.
+*/
+func (appPtr *application) badRequestResponse(w http.ResponseWriter, r *http.Request, err error) {
+
+	appPtr.errorResponse(w, r, http.StatusBadRequest, err.Error())
+}

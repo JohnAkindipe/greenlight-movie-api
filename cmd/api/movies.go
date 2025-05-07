@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"greenlight-movie-api/internal/data"
 	"net/http"
@@ -20,10 +19,11 @@ func (appPtr *application) createMovieHandler (w http.ResponseWriter, r *http.Re
         Runtime int32    `json:"runtime"`
         Genres  []string `json:"genres"`
     }
-    //Read the request body and Decode the request body into movie struct
-    //Send an error response if errors decoding
-    if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-        appPtr.errorResponse(w, r, http.StatusBadRequest, err.Error())
+
+    err := appPtr.readJSON(w, r, &input)
+    if err != nil {
+        appPtr.badRequestResponse(w, r, err)
+        return
     }
     
     //Store the movie in our database

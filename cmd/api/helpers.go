@@ -3,8 +3,11 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 )
@@ -88,3 +91,77 @@ func (appPtr *application) writeJSON(w http.ResponseWriter, status int, wrappedD
 	w.Write([]byte(js))
 	*/
 }
+/*********************************************************************************************************************/
+/*
+READ JSON
+We're going to use this functino to read json from requests and send respnoses as appropriate
+Although the dest in readJson has been marked as having an any type, it actually should be a
+pointer to any type i.e *any
+*/
+func (appPtr *application) readJSON(w http.ResponseWriter, r *http.Request, dest any) error {
+
+    //Prevent request body being > 1MB i.e (1,048,576 bytes)
+    r.Body = http.MaxBytesReader(w, r.Body, int64(1_048_576))
+
+    //Read the request body and Decode the request body into movie struct
+    //Send an error response if errors decoding
+    bodyDecoder := json.NewDecoder(r.Body)
+
+    //prevent random unallowed fields from being silently ignored, return an error instead
+    bodyDecoder.DisallowUnknownFields()
+
+    err := bodyDecoder.Decode(dest)
+    if err != nil {
+        var syntaxError *json.SyntaxError
+        var unmarshalTypeError *json.UnmarshalTypeError
+        var invalidUnmarshalError **json.InvalidUnmarshalError //Refer to questions(2)
+        var maxBytesError *http.MaxBytesError
+        switch {
+            case errors.As(err, &syntaxError):
+                return fmt.Errorf("body contains badly-formed JSON (at character %d)", syntaxError.Offset) 
+            case errors.Is(err, io.ErrUnexpectedEOF):
+                return errors.New("body contains badly-formed JSON")
+            case errors.As(err, &unmarshalTypeError):
+                if unmarshalTypeError.Field != "" {
+                    return fmt.Errorf("body contains incorrect JSON type for field %q", unmarshalTypeError.Field)
+                }
+                return fmt.Errorf("body contains incorrect JSON type (at character %d)", unmarshalTypeError.Offset) 
+            case errors.Is(err, io.EOF):
+                return errors.New("body must not be empty")
+            case strings.HasPrefix(err.Error(), "json: unknown field "):
+                fieldName := strings.TrimPrefix(err.Error(), "json: unknown field ")
+                return fmt.Errorf("body contains unallowed fields: %s", fieldName)
+            case errors.As(err, &maxBytesError):
+                return fmt.Errorf("request body has exceeded limit: %d bytes", maxBytesError.Limit)
+            case errors.As(err, invalidUnmarshalError):
+                panic(err)
+            default:
+                return err
+        }
+    }
+
+    //Prevent request body from having more than json content per request
+    //barring any other thing but the one JSON body we expect
+    err = bodyDecoder.Decode(&struct{}{})
+    if !errors.Is(err, io.EOF) {
+        return errors.New("expect request to contain only one JSON body")
+    }
+    return nil
+}
+
+/*********************************************************************************************************************/
+/*
+QUESTION:
+1. What is the difference between errors.Is and errors.As
+2. Why are we taking a pointer to a pointer in arguments to errors.As.
+   var ae *argError
+    if errors.As(err, &ae)
+
+Consider the above golang code, ignore the fact that the snippet is incomplete. 
+I have noticed that in go code, when comparing errors using errors.As, a nil pointer 
+is usually initialized which is a pointer to a type which implements the error interface, then we pass the address 
+of this pointer as a second argument to errors.As, in essence, why must this be the case, in fact, it is considered 
+an error to merely pass in the pointer value (i.e. pass in ae as the second parameter) as the second parameter to 
+errors.As, it is usually passed as address of pointer value. In essence we are passing the address of an address.
+ Why is this the case?
+*/
