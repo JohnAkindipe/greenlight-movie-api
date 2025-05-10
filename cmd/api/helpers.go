@@ -114,7 +114,7 @@ func (appPtr *application) readJSON(w http.ResponseWriter, r *http.Request, dest
     if err != nil {
         var syntaxError *json.SyntaxError
         var unmarshalTypeError *json.UnmarshalTypeError
-        var invalidUnmarshalError **json.InvalidUnmarshalError //Refer to questions(2)
+        var invalidUnmarshalError *json.InvalidUnmarshalError //Refer to questions(2)
         var maxBytesError *http.MaxBytesError
         switch {
             case errors.As(err, &syntaxError):
@@ -133,7 +133,7 @@ func (appPtr *application) readJSON(w http.ResponseWriter, r *http.Request, dest
                 return fmt.Errorf("body contains unallowed fields: %s", fieldName)
             case errors.As(err, &maxBytesError):
                 return fmt.Errorf("request body has exceeded limit: %d bytes", maxBytesError.Limit)
-            case errors.As(err, invalidUnmarshalError):
+            case errors.As(err, &invalidUnmarshalError):
                 panic(err)
             default:
                 return err
