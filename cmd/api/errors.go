@@ -97,3 +97,13 @@ func (appPtr *application) badRequestResponse(w http.ResponseWriter, r *http.Req
 
 	appPtr.errorResponse(w, r, http.StatusBadRequest, err.Error())
 }
+
+/*********************************************************************************************************************/
+/*
+FAILED VALIDATION RESPONSE
+writes a 422 Unprocessable Entity and the contents of the errors map from our new Validator type as a JSON response 
+body.
+*/
+func (appPtr *application) failedValidationResponse(w http.ResponseWriter, r *http.Request, validationErrors map[string]string) {
+	appPtr.errorResponse(w, r, http.StatusUnprocessableEntity, validationErrors)
+}
