@@ -31,10 +31,10 @@ func (appPtr *application) createMovieHandler (w http.ResponseWriter, r *http.Re
         Title: input.Title,
     }
 
-    movieValidatorPtr := validator.New()
-
     // Validate the input from the movie input send a 
     // failedValidationResponse if any errors encountered during validation
+    movieValidatorPtr := validator.New()
+    
     data.ValidateMovie(movieValidatorPtr, &movie)
     if !movieValidatorPtr.Valid() {
         appPtr.failedValidationResponse(w, r, movieValidatorPtr.Errors)

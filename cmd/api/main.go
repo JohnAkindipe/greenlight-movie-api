@@ -1,12 +1,18 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
+
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 /*********************************************************************************************************************/
@@ -14,16 +20,26 @@ import (
 // hard coded version constant, we'll automatically determine this later
 const version = "1.0.0"
 /*********************************************************************************************************************/
+// SETUP CONFIGURATION
 // Define a config struct to hold all the configuration settings for our application.
 // For now, the only configuration settings will be the network port that we want the
 // server to listen on, and the name of the current operating environment for the
 // application (development, staging, production, etc.). We will read in these
 // configuration settings from command-line flags when the application starts.
+// Add a db struct field to hold the configuration settings for our database connection
+// pool. For now this only holds the DSN, which we will read in from a command-line flag.
 type config struct {
     port int
     env  string
+	db struct {
+		dsn string
+		maxOpenConns int
+		maxIdleConns int
+		maxIdleTime time.Duration
+	}
 }
 /*********************************************************************************************************************/
+// APPLICATION CONFIGURATION
 // Define an application struct to hold the dependencies for our HTTP handlers, helpers,
 // and middleware. At the moment this only contains a copy of the config struct and a 
 // logger, but it will grow to include a lot more as our build progresses.
@@ -32,8 +48,73 @@ type application struct {
     logger *slog.Logger
 }
 /*********************************************************************************************************************/
+// OPEN DB to open a connection pool
+// The openDB() function returns a sql.DB connection pool.
+func openDB(cfg config) (*sql.DB, error) {
+    // Use sql.Open() to create an empty connection pool, using the DSN from the config
+    // struct.
+    db, err := sql.Open("postgres", cfg.db.dsn)
+    if err != nil {
+        return nil, err
+    }
+
+	// Set the maximum idle timeout for connections in the pool. Passing a duration less
+    // than or equal to 0 will mean that connections are not closed due to their idle time. 
+	db.SetConnMaxIdleTime(cfg.db.maxIdleTime)
+    // Set the maximum number of idle connections in the pool. Again, passing a value
+    // less than or equal to 0 will mean there is no limit.
+	db.SetMaxIdleConns(cfg.db.maxIdleConns)
+	// Set the maximum number of open (in-use + idle) connections in the pool. Note that
+    // passing a value less than or equal to 0 will mean there is no limit.
+	db.SetMaxOpenConns(cfg.db.maxOpenConns)
+    
+
+    // Create a context with a 5-second timeout deadline.
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+
+    // Use PingContext() to establish a new connection to the database, passing in the
+    // context we created above as a parameter. If the connection couldn't be
+    // established successfully within the 5 second deadline, then this will return an
+    // error. If we get this error, or any other, we close the connection pool and 
+    // return the error.
+    err = db.PingContext(ctx)
+    if err != nil {
+        db.Close()
+        return nil, err
+    }
+
+    // Return the sql.DB connection pool.
+    return db, nil
+}
+/*********************************************************************************************************************/
 // MAIN FUNC
 func main() {
+	// LOG SETUP
+	// Initialize a new structured logger which writes log entries to the standard out 
+    // stream.
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+/*********************************************************************************************************************/
+	//LOAD ENVIRONMENT VARIABLES
+	// Log error and exit if there was an error loading the environment variables
+	err := godotenv.Load()
+	
+	if err != nil {
+		logger.Error("Failed to load env variables", "err", err.Error())
+		os.Exit(1)
+	}
+	// Get the maxIdleConns and maxOpenConns from the env variables
+	// and convert them to integers
+	maxIdleConns, err := strconv.Atoi(os.Getenv("MAXIDLECONNS"))
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+	maxOpenConns, err :=strconv.Atoi(os.Getenv("MAXOPENCONNS"))
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
 /*********************************************************************************************************************/	
 	// Declare an instance of the config struct.
 	var cfg config
@@ -43,12 +124,29 @@ func main() {
 	// The IntVar and StringVar will automatically store the result of the flag in the destination
 	flag.IntVar(&cfg.port, "port", 3000, "This value specifies what port the server should listen on")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
+	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("GREENLIGHT_DB_DSN"), "the dsn for the database")
+	flag.DurationVar(&cfg.db.maxIdleTime, "conn-max-idle-time", 15 * time.Minute, "db conn-idle-timeout")
+	flag.IntVar(&cfg.db.maxIdleConns, "max-idle-conns", maxIdleConns, "maximum no. of idle connections")
+	flag.IntVar(&cfg.db.maxOpenConns, "max-open-conns", maxOpenConns, "maximum no. of db connections")
 	flag.Parse()
 /*********************************************************************************************************************/
-	// LOG SETUP
-	// Initialize a new structured logger which writes log entries to the standard out 
-    // stream.
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	// DATABASE SETUP
+    // Call the openDB() helper function (see below) to create the connection pool,
+    // passing in the config struct. If this returns an error, we log it and exit the
+    // application immediately.
+	db, err := openDB(cfg)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+
+    // Defer a call to db.Close() so that the connection pool is closed before the
+    // main() function exits.
+    defer db.Close()
+
+    // Also log a message to say that the connection pool has been successfully 
+    // established.
+    logger.Info("database connection pool established")
 /*********************************************************************************************************************/
 	// APP STRUCT SETUP
 	// Initialize the application with the config and logger we've set up
@@ -76,8 +174,8 @@ func main() {
 	//log that we're starting the server at this port and in this environment
 	logger.Info("starting server", "addr", srvPtr.Addr, "env", cfg.env)
 	// call the listen and serve method of srvPtr
-	err := srvPtr.ListenAndServe()
-	// log error explaining why the serve failed to run, if any
+	err = srvPtr.ListenAndServe()
+	// log error explaining why the server failed to run, if any
 	logger.Error(err.Error())
 /*********************************************************************************************************************/
 	// STOP THE SERVER
