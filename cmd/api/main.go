@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"greenlight-movie-api/internal/data"
 	"log/slog"
 	"net/http"
 	"os"
@@ -46,6 +47,7 @@ type config struct {
 type application struct {
     config config
     logger *slog.Logger
+	dbModel data.Models
 }
 /*********************************************************************************************************************/
 // OPEN DB to open a connection pool
@@ -53,20 +55,20 @@ type application struct {
 func openDB(cfg config) (*sql.DB, error) {
     // Use sql.Open() to create an empty connection pool, using the DSN from the config
     // struct.
-    db, err := sql.Open("postgres", cfg.db.dsn)
+    dbPtr, err := sql.Open("postgres", cfg.db.dsn)
     if err != nil {
         return nil, err
     }
 
 	// Set the maximum idle timeout for connections in the pool. Passing a duration less
     // than or equal to 0 will mean that connections are not closed due to their idle time. 
-	db.SetConnMaxIdleTime(cfg.db.maxIdleTime)
+	dbPtr.SetConnMaxIdleTime(cfg.db.maxIdleTime)
     // Set the maximum number of idle connections in the pool. Again, passing a value
     // less than or equal to 0 will mean there is no limit.
-	db.SetMaxIdleConns(cfg.db.maxIdleConns)
+	dbPtr.SetMaxIdleConns(cfg.db.maxIdleConns)
 	// Set the maximum number of open (in-use + idle) connections in the pool. Note that
     // passing a value less than or equal to 0 will mean there is no limit.
-	db.SetMaxOpenConns(cfg.db.maxOpenConns)
+	dbPtr.SetMaxOpenConns(cfg.db.maxOpenConns)
     
 
     // Create a context with a 5-second timeout deadline.
@@ -78,14 +80,14 @@ func openDB(cfg config) (*sql.DB, error) {
     // established successfully within the 5 second deadline, then this will return an
     // error. If we get this error, or any other, we close the connection pool and 
     // return the error.
-    err = db.PingContext(ctx)
+    err = dbPtr.PingContext(ctx)
     if err != nil {
-        db.Close()
+        dbPtr.Close()
         return nil, err
     }
 
-    // Return the sql.DB connection pool.
-    return db, nil
+    // Return the *sql.DB connection pool.
+    return dbPtr, nil
 }
 /*********************************************************************************************************************/
 // MAIN FUNC
@@ -134,7 +136,7 @@ func main() {
     // Call the openDB() helper function (see below) to create the connection pool,
     // passing in the config struct. If this returns an error, we log it and exit the
     // application immediately.
-	db, err := openDB(cfg)
+	dbPtr, err := openDB(cfg)
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
@@ -142,7 +144,7 @@ func main() {
 
     // Defer a call to db.Close() so that the connection pool is closed before the
     // main() function exits.
-    defer db.Close()
+    defer dbPtr.Close()
 
     // Also log a message to say that the connection pool has been successfully 
     // established.
@@ -153,11 +155,14 @@ func main() {
 	/*
 	We'll also define all our route handlers on this application struct using a pointer receiver,
 	this way all dependences needed by our handlers can be provided as a field in the application
-	without resorting to global variables or closures
+	without resorting to global variables or closures.
+	Per the dbModel field on the appPtr struct, the function call will return a db model, initialized with a 
+	moviesModel, whose dbPtr field is populated by the dbPtr we pass in
 	*/
 	appPtr := &application{
 		config: cfg,
 		logger: logger,
+		dbModel: data.NewModel(dbPtr),
 	}
 /*********************************************************************************************************************/
 	// SERVER SETUP

@@ -41,11 +41,25 @@ func (appPtr *application) createMovieHandler (w http.ResponseWriter, r *http.Re
         return
     }
     //Store the movie in our database
+    err = appPtr.dbModel.MovieModel.Insert(&movie)
+    if err != nil {
+        appPtr.serverErrorResponse(w, r, err)
+        return
+    }
+
+    // When sending a HTTP response, we want to include a Location header to let the 
+    // client know which URL they can find the newly-created resource at.
+    headers := http.Header{}
+    headers.Set("Location", fmt.Sprintf("/v1/movies/%d", movie.ID))
    
-    fmt.Fprintf(w, "%+v\n", input)
     //Return a response to the user that the movie was created successfully
-    appPtr.writeJSON(w, http.StatusOK, envelope{"movie": input}, nil)
-    // fmt.Fprintf(w, "Movie created successfully %+v", input)
+    //the movie we are sending back will actually have been updated with the
+    //fields that were erstwhile empty from the client, these fields have been
+    //populated by our database and updated in the movie now being sent back
+    err = appPtr.writeJSON(w, http.StatusCreated, envelope{"movie": movie}, headers)
+    if err != nil {
+        appPtr.serverErrorResponse(w, r, err)
+    }
 }
 /*********************************************************************************************************************/
 //GET /v1/movies/:id

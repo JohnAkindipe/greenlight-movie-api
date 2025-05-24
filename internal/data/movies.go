@@ -1,14 +1,17 @@
 package data
 
 import (
+	"database/sql"
 	"fmt"
 	"greenlight-movie-api/internal/validator"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 /*********************************************************************************************************************/
 //Allowed Genre Values
-var allowedGenres = []string{"adventure", "action", "animation", "romance", "comedy", "history"}
+var allowedGenres = []string{"adventure", "action", "animation", "romance", "comedy", "history", "drama"}
 
 /*********************************************************************************************************************/
 //MOVIE STRUCT
@@ -34,8 +37,7 @@ type Movie struct {
 	Version int32 			`json:"version"`//version number is initially 1 and will be incremented everytime
 					//info about the movie is updated
 }
-
-
+/*********************************************************************************************************************/
 /*
 MOVIE INPUT
 Data we expect from client when they want to create a movie
@@ -45,6 +47,63 @@ type MovieInput struct {
         Year    int32    `json:"year"`
         Runtime Runtime    `json:"runtime"`
         Genres  []string `json:"genres"`
+}
+/*********************************************************************************************************************/
+/*
+MOVIE MODEL
+*/
+//Methinks we design this model to wrap a connection pool and will thus represent a pool dedicated to working with
+//the movie table in our database. We'll define methods against the MovieModel to perform CRUD operations against
+//the movie database. The DB connection pool it wraps will do the heavy lifting, inside these methods, hence
+//why we made the engineering decision to include it as a field in the struct, basically, it is a dependency that
+//its methods will need, therefore we're doing some sort of dependency injection, here.
+type MovieModel struct{
+	DBPtr *sql.DB
+}
+
+/*
+CREATE (INSERT) MOVIE - Create a new movie in the database, return an error
+should the operation fail
+*/
+func (movieModel MovieModel) Insert(moviePtr *Movie) error {
+	rowPtr := movieModel.DBPtr.QueryRow(`
+		INSERT INTO movies(title, year, runtime, genres)
+		VALUES($1, $2, $3, $4) RETURNING id, created_at, version
+	`, moviePtr.Title, moviePtr.Year, moviePtr.Runtime, pq.Array(moviePtr.Genres))
+
+	//scan result of sql query into the movie pointed at by moviePtr
+	//return an error if unsuccessful
+ 	return rowPtr.Scan(&moviePtr.ID, &moviePtr.CreatedAt, &moviePtr.Version)
+}
+
+/*
+READ (GET) MOVIE (Get by Author; movieModel - Movie by author)
+Get a movie from the database, given the movie id
+*/
+func(movieModel MovieModel) GetMovie(id string) (*Movie, error) {
+	return nil, nil
+}
+
+/*
+UPDATE MOVIE - Update a movie in the database, return an error
+should the operation fail. This accepts a movie argument,
+this argument will however be different to that we pass in during
+create, this movie argument MUST contain an ID, as well as the fields
+we want to update, that is, some fields can be empty. However, in the argument to
+Insert, the movie we pass will not contain an ID and must contain all the arguments
+in order not to violate the NOT NULL constraints we have in our database.
+*/
+func (movieModel MovieModel) Update(movie *Movie) error {
+    return nil
+}
+
+/*
+DELETE MOVIE - Delete a movie from the database, given the ID
+return an error should the operation fail. Might redesign this to include
+the deleted movie as well.
+*/
+func (movieModel MovieModel) Delete(id int64) error {
+    return nil
 }
 /*********************************************************************************************************************/
 /*

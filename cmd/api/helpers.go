@@ -73,6 +73,11 @@ func (appPtr *application) writeJSON(w http.ResponseWriter, status int, wrappedD
         w.Header()[key] = value
     }
 
+    /*
+    It is important that we have not written headers when there is a possibility of errors happening.
+    We have designed the code to only write to the response stream, when we can guarantee that no
+    errors can occur from our operation on the data we want to send.
+    */
     w.Header().Set("Content-Type", "application/json")
     w.WriteHeader(status)
 	// w.Write(jsonData)
