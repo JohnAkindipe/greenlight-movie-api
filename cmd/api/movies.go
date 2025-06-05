@@ -1,11 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"greenlight-movie-api/internal/data"
 	"greenlight-movie-api/internal/validator"
 	"net/http"
-	"time"
 )
 
 /*********************************************************************************************************************/
@@ -68,25 +68,32 @@ func (appPtr *application) showMovieHandler (w http.ResponseWriter, r *http.Requ
 	//Get the value of the named parameter "id" from the request
     id, err := appPtr.readIDParam(r)
     if err != nil {
-        //let the client know we could not find a movie with the provided id parameter
-        appPtr.notFoundHandler(w, r)
+        // let the client know that we had a problem reading the id
+        // provided in the req url, most likely, the provided id is invalid
+        appPtr.badRequestResponse(w, r, fmt.Errorf("read id: %w", err))
         return
     }
 
-    //instantiate a movie type, we'll probably be pulling this data from a database later.
-    movie := data.Movie{
-        ID: id,
-        Title: "Casablanca",
-        Runtime: 102,
-        Genres: []string{"drama", "romance", "war"},
-        Version: 1,
-        CreatedAt: time.Now(),
+    // Call the Get() method to fetch the data for a specific movie. We also need to 
+    // use the errors.Is() function to check if it returns a data.ErrRecordNotFound
+    // error, in which case we send a 404 Not Found response to the client
+    // otherwise, we send a serverErrorResponse
+    moviePtr, err := appPtr.dbModel.MovieModel.GetMovie(id)
+    if err != nil {
+        switch {
+        case errors.Is(err, data.ErrRecordNotFound):
+            appPtr.notFoundHandler(w, r)
+        default:
+            appPtr.serverErrorResponse(w, r, err)
+        }
+        return
     }
 
     //wrap the movie data with the string "movie"
-    wrappedMovieData := envelope{ "movie": movie }
+    wrappedMovieData := envelope{ "movie": *moviePtr }
 
-    err = appPtr.writeJSON(w, http.StatusOK, wrappedMovieData, nil) //marshal the movie data into json and send to the client
+    //marshal the movie data into json and send to the client
+    err = appPtr.writeJSON(w, http.StatusOK, wrappedMovieData, nil) 
 
     //Respond with an error if we encountered an error marshalling the movie data into valid json
     if err != nil {

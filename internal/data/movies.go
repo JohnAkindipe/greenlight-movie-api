@@ -2,6 +2,7 @@ package data
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"greenlight-movie-api/internal/validator"
 	"time"
@@ -34,7 +35,7 @@ type Movie struct {
 	Year int32				`json:"year,omitempty"`
 	Runtime Runtime 		`json:"runtime,omitempty"`//Movie runtime (in minutes) 
 	Genres []string			`json:"genres,omitempty"`
-	Version int32 			`json:"version"`//version number is initially 1 and will be incremented everytime
+	Version int32 			`json:"version,omitempty"`//version number is initially 1 and will be incremented everytime
 					//info about the movie is updated
 }
 /*********************************************************************************************************************/
@@ -80,8 +81,48 @@ func (movieModel MovieModel) Insert(moviePtr *Movie) error {
 READ (GET) MOVIE (Get by Author; movieModel - Movie by author)
 Get a movie from the database, given the movie id
 */
-func(movieModel MovieModel) GetMovie(id string) (*Movie, error) {
-	return nil, nil
+func(movieModel MovieModel) GetMovie(id int64) (*Movie, error) {
+	// The PostgreSQL bigserial type that we're using for the movie ID starts
+    // auto-incrementing at 1 by default, so we know that no movies will have ID values
+    // less than that. To avoid making an unnecessary database call, we take a shortcut
+    // and return an ErrRecordNotFound error straight away.
+    if id < 1 {
+        return nil, ErrRecordNotFound
+    }
+	// Create a movie variable where we will copy the result of
+	// the db query into.
+	var movie Movie
+	query := `
+		SELECT * FROM movies WHERE id = $1
+	`
+	rowPtr := movieModel.DBPtr.QueryRow(
+		query, 
+		id,
+	)
+	// scan the response data into the fields of the  Movie struct. 
+	// Importantly, notice that we need to convert the scan target for the 
+    // genres column using the pq.Array() adapter function again.
+	// which was used in the insert function on the genres column
+	err := rowPtr.Scan(       
+		&movie.ID,
+        &movie.CreatedAt,
+        &movie.Title,
+        &movie.Year,
+        &movie.Runtime,
+        pq.Array(&movie.Genres),
+        &movie.Version,
+	)
+
+    // Handle any errors. If there was no matching movie found, Scan() will return 
+    // a sql.ErrNoRows error. We check for this and return our custom ErrRecordNotFound 
+    // error instead.
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrRecordNotFound
+		}
+		return nil, err
+	}
+	return &movie, nil
 }
 
 /*
