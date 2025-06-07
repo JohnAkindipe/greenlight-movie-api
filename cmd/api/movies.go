@@ -41,7 +41,7 @@ func (appPtr *application) createMovieHandler (w http.ResponseWriter, r *http.Re
         return
     }
     //Store the movie in our database
-    err = appPtr.dbModel.MovieModel.Insert(&movie)
+    err = appPtr.dbModel.MovieModel.InsertMovie(&movie)
     if err != nil {
         appPtr.serverErrorResponse(w, r, err)
         return
@@ -103,7 +103,125 @@ func (appPtr *application) showMovieHandler (w http.ResponseWriter, r *http.Requ
         appPtr.serverErrorResponse(w, r, err)
     }
 }
+/*********************************************************************************************************************/
+// PUT (UPDATE) /v1/movies/:id
+func (appPtr *application) updateMovieHandler(w http.ResponseWriter, r *http.Request) {
+    //Create a new movie input struct
+    var input data.MovieInput
 
+    //Unmarshal the JSON from request body into the input struct
+    //Send a bad request response if any error during unmarshaling
+    err := appPtr.readJSON(w, r, &input)
+    if err != nil {
+        appPtr.badRequestResponse(w, r, err)
+        return
+    }
+
+    //Get the value of the named parameter "id" from the request
+    id, err := appPtr.readIDParam(r)
+    if err != nil {
+        // let the client know that we had a problem reading the id
+        // provided in the req url, most likely, the provided id is invalid
+        appPtr.badRequestResponse(w, r, fmt.Errorf("read id: %w", err))
+        return
+    }
+
+    // Call the Get() method to fetch the data for a specific movie. We also need to 
+    // use the errors.Is() function to check if it returns a data.ErrRecordNotFound
+    // error, in which case we send a 404 Not Found response to the client
+    // otherwise, we send a serverErrorResponse
+    moviePtr, err := appPtr.dbModel.MovieModel.GetMovie(id)
+    if err != nil {
+        switch {
+        case errors.Is(err, data.ErrRecordNotFound):
+            appPtr.notFoundHandler(w, r)
+        default:
+            appPtr.serverErrorResponse(w, r, err)
+        }
+        return
+    }
+
+    // Change the values of the movie we got back from the db to the new values
+    // provided in the input from the request
+    moviePtr.Title = input.Title
+    moviePtr.Year = input.Year
+    moviePtr.Runtime = input.Runtime
+    moviePtr.Genres = input.Genres
+
+    // Validate the input from the movie input send a 
+    // failedValidationResponse if any errors encountered during validation
+    movieValidatorPtr := validator.New()
+    
+    data.ValidateMovie(movieValidatorPtr, moviePtr)
+    if !movieValidatorPtr.Valid() {
+        appPtr.failedValidationResponse(w, r, movieValidatorPtr.Errors)
+        return
+    }
+
+    //Store the new movie into the database
+    //Send a not-found error if we cannot find for some strange reason the movie in the DB - 
+    //Although this shouldn't happen, since the id we're using for the update was got from
+    //the DB itself. We send a serverErrorResponse if we encountered any error updating the
+    //resource successfully in the DB
+    err = appPtr.dbModel.MovieModel.UpdateMovie(moviePtr)
+    if err != nil {
+        switch {
+        case errors.Is(err, data.ErrRecordNotFound):
+            appPtr.notFoundHandler(w, r)
+        default:
+            appPtr.serverErrorResponse(w, r, err)
+        }
+        return
+    }
+
+    //RETURN THE UPDATED MOVIE
+    //wrap the movie data with the string "movie"
+    wrappedMovieData := envelope{ "movie": *moviePtr }
+
+    //marshal the movie data into json and send to the client
+    err = appPtr.writeJSON(w, http.StatusOK, wrappedMovieData, nil) 
+
+    //Respond with an error if we encountered an error marshalling the movie data into valid json
+    if err != nil {
+        //log error and send json-formatted error to client
+        //log error if unable to format error to json and send empty response with
+        //code 500 to client
+        appPtr.serverErrorResponse(w, r, err)
+    }    
+}
+/*********************************************************************************************************************/
+//DELETE /v1/movies/:id
+//To delete a specific movie from the DB
+func (appPtr application) deleteMovieHandler(w http.ResponseWriter, r *http.Request) {
+    //Get the value of the named parameter "id" from the request
+    id, err := appPtr.readIDParam(r)
+    if err != nil {
+        // let the client know that we had a problem reading the id
+        // provided in the req url, most likely, the provided id is invalid
+        appPtr.badRequestResponse(w, r, fmt.Errorf("read id: %w", err))
+        return
+    }
+
+    //Delete the movie from the DB
+    moviePtr, err := appPtr.dbModel.MovieModel.Delete(id)
+
+    if err != nil {
+        switch {
+            case errors.Is(err, data.ErrRecordNotFound):
+                appPtr.notFoundHandler(w, r)
+            default:
+                appPtr.serverErrorResponse(w, r, err)
+        }
+        return
+    }
+
+    wrappedMovieData := envelope{"deleteOK": true, "movie": *moviePtr}
+    err = appPtr.writeJSON(w, http.StatusOK, wrappedMovieData, nil)
+
+    if err != nil {
+        appPtr.serverErrorResponse(w, r, err)
+    }
+}
 /*********************************************************************************************************************/
 /*
 NOTES
@@ -124,4 +242,8 @@ JSON request, and the corresponding values would be decoded without any error in
 Movie struct — even though we don’t want them to be. We could check the necessary fields in the Movie struct after
 the event to make sure that they are empty, but that feels a bit hacky, and decoding into an intermediary struct 
 (like we are in our handler) is a cleaner, simpler, and more robust approach — albeit a little bit verbose.
+
+3 - DEFINING METHODS ON APPPTR
+Note that we can define methods on our appPtr in this file because the appPtr was declared in "package main", of which
+ths file was also declared in the same package.
 */

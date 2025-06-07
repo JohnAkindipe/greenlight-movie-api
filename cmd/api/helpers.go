@@ -108,7 +108,7 @@ func (appPtr *application) readJSON(w http.ResponseWriter, r *http.Request, dest
     //Prevent request body being > 1MB i.e (1,048,576 bytes)
     r.Body = http.MaxBytesReader(w, r.Body, int64(1_048_576))
 
-    //Read the request body and Decode the request body into movie struct
+    //Read the request body and Decode the request body into movieInput struct
     //Send an error response if errors decoding
     bodyDecoder := json.NewDecoder(r.Body)
 

@@ -12,7 +12,7 @@ import (
 
 /*********************************************************************************************************************/
 //Allowed Genre Values
-var allowedGenres = []string{"adventure", "action", "animation", "romance", "comedy", "history", "drama"}
+var allowedGenres = []string{"adventure", "action", "animation", "romance", "comedy", "history", "drama", "sci-fi"}
 
 /*********************************************************************************************************************/
 //MOVIE STRUCT
@@ -66,7 +66,7 @@ type MovieModel struct{
 CREATE (INSERT) MOVIE - Create a new movie in the database, return an error
 should the operation fail
 */
-func (movieModel MovieModel) Insert(moviePtr *Movie) error {
+func (movieModel MovieModel) InsertMovie(moviePtr *Movie) error {
 	rowPtr := movieModel.DBPtr.QueryRow(`
 		INSERT INTO movies(title, year, runtime, genres)
 		VALUES($1, $2, $3, $4) RETURNING id, created_at, version
@@ -126,16 +126,68 @@ func(movieModel MovieModel) GetMovie(id int64) (*Movie, error) {
 }
 
 /*
-UPDATE MOVIE - Update a movie in the database, return an error
-should the operation fail. This accepts a movie argument,
-this argument will however be different to that we pass in during
-create, this movie argument MUST contain an ID, as well as the fields
-we want to update, that is, some fields can be empty. However, in the argument to
-Insert, the movie we pass will not contain an ID and must contain all the arguments
-in order not to violate the NOT NULL constraints we have in our database.
+UPDATE MOVIE - UpdateMovie a movie in the database, return an error should the operation 
+fail. This accepts a movie argument, this argument will however be different to that we 
+pass in during create, this movie argument MUST contain an ID, (we know that it will 
+infact surely contain an ID, cos the movie we're passing in will be the movie we got from 
+the db, from calling GETMOVIE prior, using the id passed from the request). All errors 
+with gettinig the movie successfully from the db are handled upstream from this stage, 
+so that whatever movie we do pass to the UpdateMovie function is coming fresh from the DB 
+and will indeed contain an ID, which we use to update the specific movie in the DB. 
+
+However, in the argument to Insert, the movie we pass will not contain an ID and must 
+contain all the arguments in order not to violate the NOT NULL constraints we have in 
+our database.
 */
-func (movieModel MovieModel) Update(movie *Movie) error {
-    return nil
+func (movieModel MovieModel) UpdateMovie(moviePtr *Movie) error {
+	//query to update required fields, we return * from this query
+	//because we'll be using the method QueryRow, which requires
+	//that we return one row of results at least
+    query := `
+		UPDATE movies
+		SET title = $1, year = $2, 
+		runtime = $3, genres = $4,
+		version = version + 1
+		WHERE id = $5
+		RETURNING *
+	`
+
+	//execute the query with the appropriate arguments, notice that
+	//we're also updating the version by 1 from the previuos value
+	//this will happen everytime we update a resource
+	rowPtr := movieModel.DBPtr.QueryRow(
+		query, 
+		moviePtr.Title, 
+		moviePtr.Year, 
+		moviePtr.Runtime, 
+		pq.Array(moviePtr.Genres),
+		moviePtr.ID,
+	)
+
+	//Scan the row into the moviePtr and handle any potential errors
+	err := rowPtr.Scan(       
+		&moviePtr.ID,
+        &moviePtr.CreatedAt,
+        &moviePtr.Title,
+        &moviePtr.Year,
+        &moviePtr.Runtime,
+        pq.Array(&moviePtr.Genres),
+        &moviePtr.Version,
+	)
+	
+	//I must say it seems absurt to think that an errRecordNotFound
+	//error will ever be returned, given the fact that the id that
+	//was used for the update operation was provided by the DB itself
+	if err != nil {
+		switch {
+			case errors.Is(err, sql.ErrNoRows):
+				return ErrRecordNotFound
+			default:
+				return err
+		}
+	}
+
+	return nil
 }
 
 /*
@@ -143,8 +195,34 @@ DELETE MOVIE - Delete a movie from the database, given the ID
 return an error should the operation fail. Might redesign this to include
 the deleted movie as well.
 */
-func (movieModel MovieModel) Delete(id int64) error {
-    return nil
+func (movieModel MovieModel) Delete(id int64) (*Movie, error) {
+	if id < 1 {
+		return nil, ErrRecordNotFound
+	}
+	query := `
+		DELETE FROM movies WHERE id = $1
+		RETURNING id, title, year, runtime, genres
+	`
+
+	var deletedMovie Movie
+	err := movieModel.DBPtr.QueryRow(query, id).Scan(
+		&deletedMovie.ID, 
+		&deletedMovie.Title, 
+		&deletedMovie.Year,
+		&deletedMovie.Runtime,
+		pq.Array(&deletedMovie.Genres),
+	)
+
+	fmt.Println(err)
+	if err != nil {
+		switch {
+			case errors.Is(err, sql.ErrNoRows):
+				return nil, ErrRecordNotFound
+			default:
+				return nil, err
+		}
+	}
+    return &deletedMovie, nil
 }
 /*********************************************************************************************************************/
 /*

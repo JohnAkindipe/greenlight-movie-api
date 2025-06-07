@@ -107,3 +107,5 @@ body.
 func (appPtr *application) failedValidationResponse(w http.ResponseWriter, r *http.Request, validationErrors map[string]string) {
 	appPtr.errorResponse(w, r, http.StatusUnprocessableEntity, validationErrors)
 }
+
+/*********************************************************************************************************************/

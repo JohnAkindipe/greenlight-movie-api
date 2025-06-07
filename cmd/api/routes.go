@@ -35,6 +35,14 @@ endpoint
 	//To get info about a specific movie
 	routerPtr.HandlerFunc(http.MethodGet, "/v1/movies/:id", appPtr.showMovieHandler)
 
+	//UPDATE (PUT) /v1/movies/:id
+	//To update a field in a specific movie
+	routerPtr.HandlerFunc(http.MethodPut, "/v1/movies/:id", appPtr.updateMovieHandler)
+
+	//DELETE /v1/movies/:id
+	//To delete a specific movie from the db
+	routerPtr.HandlerFunc(http.MethodDelete, "/v1/movies/:id", appPtr.deleteMovieHandler)
+
 	//return the http handler
 	// wrap the routerPtr inside the recoverPanic middleware
 	return appPtr.recoverPanic(routerPtr)
