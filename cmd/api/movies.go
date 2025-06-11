@@ -104,8 +104,117 @@ func (appPtr *application) showMovieHandler (w http.ResponseWriter, r *http.Requ
     }
 }
 /*********************************************************************************************************************/
-// PUT (UPDATE) /v1/movies/:id
+//PATCH (UPDATE) /v1/movies/:id
+//To update a field in a specific movie
+//Refer to notes(4) for more info on how null json values behave
 func (appPtr *application) updateMovieHandler(w http.ResponseWriter, r *http.Request) {
+    //Create a new movie input struct
+    var input struct {
+		Title   *string   `json:"title"`
+        Year    *int32    `json:"year"`
+        Runtime *data.Runtime    `json:"runtime"`
+        Genres  []string `json:"genres"`
+}
+
+    //Unmarshal the JSON from request body into the input struct
+    //Send a bad request response if any error during unmarshaling
+    err := appPtr.readJSON(w, r, &input)
+    if err != nil {
+        appPtr.badRequestResponse(w, r, err)
+        return
+    }
+
+    //Get the value of the named parameter "id" from the request
+    id, err := appPtr.readIDParam(r)
+    if err != nil {
+        // let the client know that we had a problem reading the id
+        // provided in the req url, most likely, the provided id is invalid
+        appPtr.badRequestResponse(w, r, fmt.Errorf("read id: %w", err))
+        return
+    }
+
+    // Call the Get() method to fetch the data for a specific movie. We also need to 
+    // use the errors.Is() function to check if it returns a data.ErrRecordNotFound
+    // error, in which case we send a 404 Not Found response to the client
+    // otherwise, we send a serverErrorResponse
+    moviePtr, err := appPtr.dbModel.MovieModel.GetMovie(id)
+    if err != nil {
+        switch {
+        case errors.Is(err, data.ErrRecordNotFound):
+            appPtr.notFoundHandler(w, r)
+        default:
+            appPtr.serverErrorResponse(w, r, err)
+        }
+        return
+    }
+
+    // Change the values of the movie we got back from the db to the new values
+    // provided in the input from the request. Check individual fields if they
+    // are nil (if the field is nil, then a value wasn't provided by the client
+    // in the JSON they sent), if so, don't bother updating the value in the moviePtr
+    // moviePtr.Title = input.Title
+    // moviePtr.Year = input.Year
+    // moviePtr.Runtime = input.Runtime
+    // moviePtr.Genres = input.Genres
+
+    if ( input.Title != nil) {
+        moviePtr.Title = *input.Title
+    }
+    if ( input.Year != nil) {
+        moviePtr.Year = *input.Year
+    }
+    if ( input.Runtime != nil) {
+        moviePtr.Runtime = *input.Runtime
+    }
+    if ( input.Genres != nil) {
+        moviePtr.Genres = input.Genres
+    }                                
+
+    // Validate the input from the movie input send a 
+    // failedValidationResponse if any errors encountered during validation
+    movieValidatorPtr := validator.New()
+    
+    data.ValidateMovie(movieValidatorPtr, moviePtr)
+    if !movieValidatorPtr.Valid() {
+        appPtr.failedValidationResponse(w, r, movieValidatorPtr.Errors)
+        return
+    }
+
+    //Store the new movie into the database
+    //Send a not-found error if we cannot find for some strange reason the movie in the DB - 
+    //Although this shouldn't happen, since the id we're using for the update was got from
+    //the DB itself. We send a serverErrorResponse if we encountered any error updating the
+    //resource successfully in the DB
+    err = appPtr.dbModel.MovieModel.UpdateMovie(moviePtr)
+    if err != nil {
+        switch {
+        case errors.Is(err, data.ErrEditConflict):
+            appPtr.editConflictResponse(w, r)
+        default:
+            appPtr.serverErrorResponse(w, r, err)
+        }
+        return
+    }
+
+    //RETURN THE UPDATED MOVIE
+    //wrap the movie data with the string "movie"
+    wrappedMovieData := envelope{ "movie": *moviePtr }
+
+    //marshal the movie data into json and send to the client
+    err = appPtr.writeJSON(w, http.StatusOK, wrappedMovieData, nil) 
+
+    //Respond with an error if we encountered an error marshalling the movie data into valid json
+    if err != nil {
+        //log error and send json-formatted error to client
+        //log error if unable to format error to json and send empty response with
+        //code 500 to client
+        appPtr.serverErrorResponse(w, r, err)
+    }    
+}
+/*********************************************************************************************************************/
+// PUT (UPDATE) /v1/movies/:id
+//To replace an entire movie with a given id in our database
+func (appPtr *application) replaceMovieHandler(w http.ResponseWriter, r *http.Request) {
     //Create a new movie input struct
     var input data.MovieInput
 
@@ -142,11 +251,11 @@ func (appPtr *application) updateMovieHandler(w http.ResponseWriter, r *http.Req
     }
 
     // Change the values of the movie we got back from the db to the new values
-    // provided in the input from the request
+    // provided in the input from the request. 
     moviePtr.Title = input.Title
     moviePtr.Year = input.Year
     moviePtr.Runtime = input.Runtime
-    moviePtr.Genres = input.Genres
+    moviePtr.Genres = input.Genres                            
 
     // Validate the input from the movie input send a 
     // failedValidationResponse if any errors encountered during validation
@@ -246,4 +355,19 @@ the event to make sure that they are empty, but that feels a bit hacky, and deco
 3 - DEFINING METHODS ON APPPTR
 Note that we can define methods on our appPtr in this file because the appPtr was declared in "package main", of which
 ths file was also declared in the same package.
+
+4 - UPDATE MOVIE, SENDING NULL VALUES
+When Go unmarshals our json body into the struct we provided, if we provide the value null for any field, it is ignored
+it is as if we did not send any value for that field at all. So if we were to provide a value of null for a field
+we wanted to update, the control-flow will look like:
+- unmarshal json into input - nothing changes really, the null field is ignored
+- change the movie from the db to fields in the input - again, nothing changes
+- update the movie in the db - we update the movie in he db (increasing the version no.) when in reality, nothing changed
+
+In an ideal world this type of request would return some kind of validation error. But — unless you write your own custom 
+JSON parser — there is no way to determine the difference between the client not supplying a key/value pair in the JSON, 
+or supplying it with the value null.
+
+In most cases, it will probably suffice to explain this special-case behavior in client documentation for the endpoint 
+and say something like “JSON items with null values will be ignored and will remain unchanged”.
 */

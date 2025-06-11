@@ -107,5 +107,14 @@ body.
 func (appPtr *application) failedValidationResponse(w http.ResponseWriter, r *http.Request, validationErrors map[string]string) {
 	appPtr.errorResponse(w, r, http.StatusUnprocessableEntity, validationErrors)
 }
-
 /*********************************************************************************************************************/
+/*
+EDIT CONFLICT RESPONSE
+writes a status conflict header to the client who is trying to update a record which has either been deleted or updated
+since it was last retrieved (read) from the db, this is part of our optimistic concurrency controls - check ch8.2
+let's go further for further explanation.
+*/
+func (appPtr *application) editConflictResponse(w http.ResponseWriter, r *http.Request) {
+	// send an error explaining we could not find the requested resource
+	appPtr.errorResponse(w, r, http.StatusConflict, "trying to update a changed or deleted movie - try again!")
+}

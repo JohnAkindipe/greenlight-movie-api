@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -42,6 +43,10 @@ type Movie struct {
 /*
 MOVIE INPUT
 Data we expect from client when they want to create a movie
+Use pointers for the Title, Year and Runtime fields. This will be 
+nil if there is no corresponding key in the JSON. We don't need 
+pointers for the Genres field, because slices already have the 
+zero-value nil.
 */
 type MovieInput struct {
 		Title   string   `json:"title"`
@@ -67,7 +72,12 @@ CREATE (INSERT) MOVIE - Create a new movie in the database, return an error
 should the operation fail
 */
 func (movieModel MovieModel) InsertMovie(moviePtr *Movie) error {
-	rowPtr := movieModel.DBPtr.QueryRow(`
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 3 * time.Second)
+	defer cancelFunc()
+
+	rowPtr := movieModel.DBPtr.QueryRowContext(
+		ctx,
+		`
 		INSERT INTO movies(title, year, runtime, genres)
 		VALUES($1, $2, $3, $4) RETURNING id, created_at, version
 	`, moviePtr.Title, moviePtr.Year, moviePtr.Runtime, pq.Array(moviePtr.Genres))
@@ -95,7 +105,12 @@ func(movieModel MovieModel) GetMovie(id int64) (*Movie, error) {
 	query := `
 		SELECT * FROM movies WHERE id = $1
 	`
-	rowPtr := movieModel.DBPtr.QueryRow(
+
+	ctx,cancelFunc := context.WithTimeout(context.Background(), (3 * time.Second))
+	defer cancelFunc()
+
+	rowPtr := movieModel.DBPtr.QueryRowContext(
+		ctx,
 		query, 
 		id,
 	)
@@ -148,20 +163,25 @@ func (movieModel MovieModel) UpdateMovie(moviePtr *Movie) error {
 		SET title = $1, year = $2, 
 		runtime = $3, genres = $4,
 		version = version + 1
-		WHERE id = $5
+		WHERE id = $5 AND version = $6
 		RETURNING *
 	`
 
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 3 * time.Second)
+	defer cancelFunc()
 	//execute the query with the appropriate arguments, notice that
 	//we're also updating the version by 1 from the previuos value
 	//this will happen everytime we update a resource
-	rowPtr := movieModel.DBPtr.QueryRow(
+	//Refer notes(1) for notes on optimistic concurrency
+	rowPtr := movieModel.DBPtr.QueryRowContext(
+		ctx,
 		query, 
 		moviePtr.Title, 
 		moviePtr.Year, 
 		moviePtr.Runtime, 
 		pq.Array(moviePtr.Genres),
 		moviePtr.ID,
+		moviePtr.Version,
 	)
 
 	//Scan the row into the moviePtr and handle any potential errors
@@ -181,7 +201,7 @@ func (movieModel MovieModel) UpdateMovie(moviePtr *Movie) error {
 	if err != nil {
 		switch {
 			case errors.Is(err, sql.ErrNoRows):
-				return ErrRecordNotFound
+				return ErrEditConflict
 			default:
 				return err
 		}
@@ -205,7 +225,11 @@ func (movieModel MovieModel) Delete(id int64) (*Movie, error) {
 	`
 
 	var deletedMovie Movie
-	err := movieModel.DBPtr.QueryRow(query, id).Scan(
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 3 * time.Second)
+	defer cancelFunc()
+
+	err := movieModel.DBPtr.QueryRowContext(ctx, query, id).Scan(
 		&deletedMovie.ID, 
 		&deletedMovie.Title, 
 		&deletedMovie.Year,
@@ -288,3 +312,18 @@ func permittedGenres(genres []string, movieValidatorPtr *validator.Validator) {
 		}
 	}
 }
+
+/*********************************************************************************************************************/
+/*
+NOTES:
+1 - OPTIMISTIC CONCURRENCY IN UPDATES
+Due to the behaviour of go in processing requests, if the server receives two separate requests to update the same
+resource at the same time, we will end up with a race condition because both requests will try and update the 
+resource without any synchronization refer to ch8.2 Let's Go further for further explanation. What we can do is,
+since we increment the version number with every update, this tells us if the data has been updated since the time
+we read it last from the DB, in that case, we only allow an update operation to pass if the version number in the
+DB is the same as the version number of the movie in the update operation (i.e we have not updated the movie since the
+last time we read it from the DB). Otherwise, if the version number is not the same, we know that another update
+operation has occurred from the last time we read from the DB and we are working with a stale version of the DB data,
+hence, we want this update operation to fail.
+*/

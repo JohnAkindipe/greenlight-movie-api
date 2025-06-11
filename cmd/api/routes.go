@@ -35,9 +35,13 @@ endpoint
 	//To get info about a specific movie
 	routerPtr.HandlerFunc(http.MethodGet, "/v1/movies/:id", appPtr.showMovieHandler)
 
-	//UPDATE (PUT) /v1/movies/:id
+	//PATCH /v1/movies/:id
 	//To update a field in a specific movie
-	routerPtr.HandlerFunc(http.MethodPut, "/v1/movies/:id", appPtr.updateMovieHandler)
+	routerPtr.HandlerFunc(http.MethodPatch, "/v1/movies/:id", appPtr.updateMovieHandler)
+
+	//PUT /v1/movies/:id
+	//To replace an entire movie with a given id in our database
+	routerPtr.HandlerFunc(http.MethodPut, "/v1/movies/:id", appPtr.replaceMovieHandler)
 
 	//DELETE /v1/movies/:id
 	//To delete a specific movie from the db
