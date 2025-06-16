@@ -13,7 +13,7 @@ import (
 
 /*********************************************************************************************************************/
 //Allowed Genre Values
-var allowedGenres = []string{"adventure", "action", "animation", "romance", "comedy", "history", "drama", "sci-fi"}
+var AllowedGenres = []string{"adventure", "action", "animation", "romance", "comedy", "history", "drama", "sci-fi"}
 
 /*********************************************************************************************************************/
 //MOVIE STRUCT
@@ -248,6 +248,54 @@ func (movieModel MovieModel) Delete(id int64) (*Movie, error) {
 	}
     return &deletedMovie, nil
 }
+
+//filters Filters - pass this in later.
+func (movieModel MovieModel) GetAllMovies(title string, genres []string) ([]*Movie, error) {
+	query := 
+	`SELECT * FROM movies 
+	WHERE (LOWER(title) = LOWER($1) OR $1 = '')
+	AND (genres @> $2 or $2 = '{}')
+	ORDER BY id`
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 3 * time.Second)
+	defer cancelFunc()
+
+	movieRows, err := movieModel.DBPtr.QueryContext(ctx, query, title, pq.Array(genres))
+	if err != nil {
+		return nil, err
+	}
+	// Importantly, defer a call to rows.Close() to ensure that the resultset is closed
+    // before GetAll() returns.
+	defer movieRows.Close()
+
+	moviePtrs := []*Movie{}
+
+	//check and prepare a next row for reading; must be called even before
+	//the first scan
+	for movieRows.Next() {
+		var movie Movie
+		//scan the current row into a movie struct
+		err := movieRows.Scan( 
+			&movie.ID, &movie.CreatedAt, &movie.Title, &movie.Year,
+        	&movie.Runtime, pq.Array(&movie.Genres), &movie.Version,
+		)
+		//return if an error is encountered
+		if err != nil {
+			return nil, err
+		}
+		//if no error, append the movie to the movies slice and continue
+		moviePtrs = append(moviePtrs, &movie)
+	}
+
+    // When the rows.Next() loop has finished, call rows.Err() to retrieve any error 
+    // that was encountered during the iteration.
+	if err := movieRows.Err(); err != nil {
+		return nil, err
+	}
+	
+	// If everything went OK, then return the slice of movies.
+	return moviePtrs, nil
+}
 /*********************************************************************************************************************/
 /*
 VALIDATE USER'S INPUT
@@ -303,10 +351,10 @@ Validate that the genres slice only contains genres in the permitted genres slic
 */
 func permittedGenres(genres []string, movieValidatorPtr *validator.Validator) {
 	for _, genre := range genres {
-		if !validator.PermittedValue(genre, allowedGenres...) {
+		if !validator.PermittedValue(genre, AllowedGenres...) {
 			movieValidatorPtr.AddError(
 				"genres", 
-				fmt.Sprintf("must not contain values aside the following: %+v", allowedGenres),
+				fmt.Sprintf("must not contain values aside the following: %+v", AllowedGenres),
 			)
 			return
 		}

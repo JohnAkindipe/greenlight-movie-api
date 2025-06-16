@@ -331,6 +331,72 @@ func (appPtr application) deleteMovieHandler(w http.ResponseWriter, r *http.Requ
         appPtr.serverErrorResponse(w, r, err)
     }
 }
+
+//GET /v1/movies
+//To Get all the movies from the db: Also allows for filtering, sorting, and pagination
+func (appPtr *application) showAllMoviesHandler(w http.ResponseWriter, r *http.Request) {
+    //we'll define an input struct
+    //to hold the expected values from the request query string.
+    var input struct {
+        Title    string
+        Genres   []string
+        Filters data.Filters
+    }
+
+    queryString := r.URL.Query()
+    queryValidatorPtr := validator.New()
+
+    // Use our helpers to extract the title and genres query string values, falling back
+    // to defaults of an empty string and an empty slice respectively if they are not 
+    // provided by the client.
+    input.Title = appPtr.readString(queryString, "title", "")
+    input.Genres = appPtr.readCSV(queryString, "genres", []string{}, data.AllowedGenres, queryValidatorPtr)
+
+    // Get the page and page_size query string values as integers. Notice that we set 
+    // the default page value to 1 and default page_size to 20, and that we pass the 
+    // validator instance as the final argument here. 
+    input.Filters.Page = appPtr.readInt(queryString, "page", 1, queryValidatorPtr)
+    input.Filters.PageSize = appPtr.readInt(queryString, "page_size", 20, queryValidatorPtr)
+    input.Filters.Sort = appPtr.readString(queryString, "sort", "id")
+
+    //the values we allow to be provided as a value for the input.Filters.Sort field
+    input.Filters.SortSafeList = []string{"id", "title", "year", "runtime", "-id", "-title", "-year", "-runtime"}
+
+    data.ValidateFilters(queryValidatorPtr, input.Filters)
+
+    // Check the Validator instance for any errors and use the failedValidationResponse()
+    // helper to send the client a response if necessary. 
+    if !queryValidatorPtr.Valid() {
+        appPtr.failedValidationResponse(w, r, queryValidatorPtr.Errors)
+        return
+    }
+
+    // Call the GetAll() method to retrieve the movies, 
+    // TODO: passing in the various filter parameters.
+    moviesPtrs, err := appPtr.dbModel.MovieModel.GetAllMovies(input.Title, input.Genres)
+    if err != nil {
+        appPtr.serverErrorResponse(w, r, err)
+        return
+    }
+
+    //dereference the individual moviePtrs in the moviesPtrs slice
+    //add the actual movie to the moviesSlice. Note however that this
+    //dereferencing is not necessary and is only here for clarity sake
+    //Refer to Notes(5) for more on this
+    moviesSlice := []data.Movie{}
+    for _, moviePtr := range moviesPtrs {
+        moviesSlice = append(moviesSlice, *moviePtr)
+    }
+
+    moviesData := envelope{
+        "movies": moviesSlice,
+    }
+
+    err = appPtr.writeJSON(w, http.StatusOK, moviesData, nil)
+    if err != nil {
+        appPtr.serverErrorResponse(w, r, err)
+    }
+}
 /*********************************************************************************************************************/
 /*
 NOTES
@@ -370,4 +436,7 @@ or supplying it with the value null.
 
 In most cases, it will probably suffice to explain this special-case behavior in client documentation for the endpoint 
 and say something like “JSON items with null values will be ignored and will remain unchanged”.
+
+5 - POINTERS ARE ENCODED IN JSON AS THE VALUES POINTED TO
+Pointers to a value are json encoded as the value that the pointer points to.
 */

@@ -4,8 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"greenlight-movie-api/internal/data"
+	"greenlight-movie-api/internal/validator"
 	"io"
 	"net/http"
+	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -154,6 +158,104 @@ func (appPtr *application) readJSON(w http.ResponseWriter, r *http.Request, dest
     return nil
 }
 
+// The readString() helper returns a string value from the query string, or the provided
+// default value if no matching key could be found.
+// The readString() helper returns a string value from the query string, or the provided
+// default value if no matching key could be found.
+func (app *application) readString(qs url.Values, key string, defaultValue string) string {
+    // Extract the value for a given key from the query string. If no key exists this
+    // will return the empty string "". 
+    s := qs.Get(key)
+
+    // If no key exists (or the value is empty) then return the default value.
+    if s == "" {
+        return defaultValue
+    }
+
+    // Otherwise return the string.
+    return s
+}
+
+func (appPtr *application) readInt(qs url.Values, key string, defaultValue int, queryValidatorPtr *validator.Validator) int {
+    value := qs.Get(key)
+
+    if value == "" {
+        return defaultValue
+    }
+
+    //intVal is not a valid number and can't be converted to an int
+    intVal, err := strconv.Atoi(value)
+    queryValidatorPtr.Check(
+        err == nil,
+        key,
+        "must be a number",
+    )
+    if err != nil {
+        return defaultValue
+    }
+
+    // //intVal is a valid number but is negative
+    // queryValidatorPtr.Check(
+    //     intVal >= 0,
+    //     key,
+    //     fmt.Sprintf("%s cannot be negative", intVal),
+    // )
+    return intVal
+}
+
+// The readCSV() helper reads a string value from the query string and then splits it 
+// into a slice on the comma character. If no matching key could be found, it returns
+// the provided default value.
+// This function allows some callers to provide a value for validatorPtr and allowedValues
+// or not (passing nil instead for both params), however, if a value is passed for validatorPtr
+// a value must be passed for allowedValues, otherwise the function may behave unexpectedly
+func (app *application) readCSV(qs url.Values, key string, defaultValue []string, allowedValues []string, validatorPtr *validator.Validator) []string {
+    // Extract the value from the query string.
+    csv := qs.Get(key)
+
+    // If no key exists (or the value is empty) then return the default value.
+    if csv == "" {
+        return defaultValue
+    }
+
+    // Otherwise parse the value into a []string slice
+    sliceVal := strings.Split(csv, ",")
+
+    //this will allow some callers of this function to pass nil as a value of validatorPtr
+    //meaning they don't care about validation.
+    if validatorPtr != nil {
+        for _, sliceElem := range sliceVal {
+            validatorPtr.Check(
+                slices.Contains(allowedValues, sliceElem),
+                key,
+                fmt.Sprintf("must contain elements included in the array: %+v", allowedValues),
+            )
+            if _, exists := validatorPtr.Errors[key]; exists {
+                return sliceVal //TODO: would it make sense to return sliceVal or defaultValue
+            }
+        }
+    }
+
+    return sliceVal
+}
+
+func (appPtr *application) PseudoreadCSV(key string, queryValidatorPtr *validator.Validator, r *http.Request) []string {
+    queryParams := r.URL.Query()
+    value := queryParams.Get(key) //value is probably somn like "crime,action"
+    
+    csvSlice := strings.Split(value, ",") //now split into "[crime, action]"
+
+    //have to check if all the elements in the array is a valid genre
+    for _, csvElem := range csvSlice {
+        queryValidatorPtr.Check(
+            validator.PermittedValue(csvElem, data.AllowedGenres...),
+            key,
+            fmt.Sprintf("csvElem is not a valid %s value", key),
+        )
+    }
+
+    return csvSlice
+}
 /*********************************************************************************************************************/
 /*
 QUESTION:

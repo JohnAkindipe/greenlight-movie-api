@@ -47,6 +47,10 @@ endpoint
 	//To delete a specific movie from the db
 	routerPtr.HandlerFunc(http.MethodDelete, "/v1/movies/:id", appPtr.deleteMovieHandler)
 
+	//GET /v1/movies
+	//To Get all the movies from the db: Also allows for filtering, sorting, and pagination
+	routerPtr.HandlerFunc(http.MethodGet, "/v1/movies", appPtr.showAllMoviesHandler)
+
 	//return the http handler
 	// wrap the routerPtr inside the recoverPanic middleware
 	return appPtr.recoverPanic(routerPtr)
