@@ -372,8 +372,10 @@ func (appPtr *application) showAllMoviesHandler(w http.ResponseWriter, r *http.R
     }
 
     // Call the GetAll() method to retrieve the movies, 
-    // TODO: passing in the various filter parameters.
-    moviesPtrs, err := appPtr.dbModel.MovieModel.GetAllMovies(input.Title, input.Genres)
+    // At this point, we're 100% certain that whatever was
+    // passed in the filter is valid, this is particularly important as in the GetAllMovies function
+    // that is called, we don't do any safety checks on the filters - especially the sort field values.
+    moviesPtrs, err := appPtr.dbModel.MovieModel.GetAllMovies(input.Title, input.Genres, input.Filters)
     if err != nil {
         appPtr.serverErrorResponse(w, r, err)
         return
@@ -388,7 +390,22 @@ func (appPtr *application) showAllMoviesHandler(w http.ResponseWriter, r *http.R
         moviesSlice = append(moviesSlice, *moviePtr)
     }
 
+    //total number of movies returned by the array including the
+    //genre and title filters, not regarding the limit and offset
+    //clauses.
+    var totalRecords int
+    if len(moviesSlice) == 0 {
+        totalRecords = 0
+    } else {
+        totalRecords = moviesSlice[0].TotalMovies
+    }
+
     moviesData := envelope{
+        "metadata": data.CalculatePageMetadata(
+            totalRecords,
+            input.Filters.PageSize,
+            input.Filters.Page,
+        ),
         "movies": moviesSlice,
     }
 

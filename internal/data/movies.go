@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"greenlight-movie-api/internal/validator"
+	"strings"
 	"time"
 
 	"github.com/lib/pq"
@@ -38,6 +39,7 @@ type Movie struct {
 	Genres []string			`json:"genres,omitempty"`
 	Version int32 			`json:"version,omitempty"`//version number is initially 1 and will be incremented everytime
 					//info about the movie is updated
+	TotalMovies int			`json:"-"`
 }
 /*********************************************************************************************************************/
 /*
@@ -249,18 +251,45 @@ func (movieModel MovieModel) Delete(id int64) (*Movie, error) {
     return &deletedMovie, nil
 }
 
-//filters Filters - pass this in later.
-func (movieModel MovieModel) GetAllMovies(title string, genres []string) ([]*Movie, error) {
-	query := 
-	`SELECT * FROM movies 
-	WHERE (LOWER(title) = LOWER($1) OR $1 = '')
-	AND (genres @> $2 or $2 = '{}')
-	ORDER BY id`
+//I didn't include the author's code to prevent SQL injection, not currently convinced that this is
+//absolutely needed.
+//Read notes(2) for insigt into how the GetAllMovies works
+func (movieModel MovieModel) GetAllMovies(title string, genres []string, filters Filters) ([]*Movie, error) {
+	orderMethod := ""
+
+	//filters.Sort could be "-year" or "year", the two branches handle the respective cases
+	switch strings.HasPrefix(filters.Sort, "-") {
+		case true:
+			sortString, _ := strings.CutPrefix(filters.Sort, "-") //sortString = "year" now
+			orderMethod = fmt.Sprintf("%s DESC", sortString) //orderMethod = "year DESC"
+			if sortString != "id" {
+				orderMethod += ", id" //orderMethod = "year DESC, id"
+			}
+		case false:
+			orderMethod = filters.Sort //
+			if filters.Sort != "id" {
+				orderMethod += ", id" //orderMethod = "year, id"
+			}
+	}
+
+	fmt.Println(orderMethod)
+
+    // Use full-text search for the title filter.
+    query := fmt.Sprintf(`
+        SELECT COUNT(*) OVER(), id, created_at, title, year, runtime, genres, version
+        FROM movies
+        WHERE (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '') 
+        AND (genres @> $2 OR $2 = '{}')     
+        ORDER BY %s
+		OFFSET $3 LIMIT $4
+		`, orderMethod)
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 3 * time.Second)
 	defer cancelFunc()
 
-	movieRows, err := movieModel.DBPtr.QueryContext(ctx, query, title, pq.Array(genres))
+	args := []any{title, pq.Array(genres), filters.offset(), filters.limit()}
+
+	movieRows, err := movieModel.DBPtr.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -276,6 +305,7 @@ func (movieModel MovieModel) GetAllMovies(title string, genres []string) ([]*Mov
 		var movie Movie
 		//scan the current row into a movie struct
 		err := movieRows.Scan( 
+			&movie.TotalMovies,
 			&movie.ID, &movie.CreatedAt, &movie.Title, &movie.Year,
         	&movie.Runtime, pq.Array(&movie.Genres), &movie.Version,
 		)
@@ -374,4 +404,16 @@ DB is the same as the version number of the movie in the update operation (i.e w
 last time we read it from the DB). Otherwise, if the version number is not the same, we know that another update
 operation has occurred from the last time we read from the DB and we are working with a stale version of the DB data,
 hence, we want this update operation to fail.
+
+2 - ON WINDOW FUNCTIONS AND COUNTS IN GETALLMOVIES
+The GETALLMOVIES functions has been designed to have a specific behaviour, using window functions, we have made it such
+every row that is returned in the GETALLMOVIES function, contains all the rows that initially matched the query, when
+the WHERE clauses (matching for title and genre) were applied and before the LIMIT and OFFSET clauses were considered.
+However, there is a naunce to this behaviour, while the COUNT(*), implemented as a window function, initially
+"disregards" the LIMIT AND OFFSET clauses as described above, it does require that at least one row be returned
+after the LIMIT AND OFFSET clauses have been applied, in order to include it's own result on this ONE returned row,
+of how many rows matched the query before thw LIMIT AND OFFSET clauses were applied, aha mind-bending stuff. In a
+case where a query returns no rows after the LIMIT AND OFFSET clauses have been applied, the COUNT(*) window function
+will not return anything, even if there were rows that matched the query (but obviously were disqualified by the
+LIMIT AND OFFSET clauses), usually occurs when offset is equal to COUNT(*) from the where clauses.
 */
