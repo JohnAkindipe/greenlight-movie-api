@@ -1,9 +1,13 @@
 module greenlight-movie-api
 
-go 1.21.5
+go 1.23.0
+
+toolchain go1.23.10
 
 require (
 	github.com/joho/godotenv v1.5.1
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/lib/pq v1.10.9
 )
+
+require golang.org/x/time v0.12.0

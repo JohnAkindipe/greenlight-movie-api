@@ -118,3 +118,22 @@ func (appPtr *application) editConflictResponse(w http.ResponseWriter, r *http.R
 	// send an error explaining we could not find the requested resource
 	appPtr.errorResponse(w, r, http.StatusConflict, "trying to update a changed or deleted movie - try again!")
 }
+/*********************************************************************************************************************/
+/*
+GLOBAL RATE LIMIT EXCEEDED RESPONSE
+This is when we have received too much load on our server.
+*/
+func (appPtr *application) globalRateLimitExceededResponse(w http.ResponseWriter, r *http.Request) {
+	//send an error to try again shortly
+	appPtr.errorResponse(w, r, http.StatusTooManyRequests, "our servers are currently handling a lot of requests - try again shortly")
+}
+/*********************************************************************************************************************/
+/*
+RATE LIMIT EXCEEDED RESPONSE
+This is for individualized rate-limit responses i.e. when a particular client
+has sent too many requests
+*/
+func (appPtr *application) rateLimitExceededResponse(w http.ResponseWriter, r *http.Request) {
+	// send an error to try again later
+	appPtr.errorResponse(w, r, http.StatusTooManyRequests, "too many requests - try again later")
+}

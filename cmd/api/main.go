@@ -38,6 +38,13 @@ type config struct {
 		maxIdleConns int
 		maxIdleTime time.Duration
 	}
+	rateLimit struct {
+		maxGlobalBurstReq	int
+		globalReqFillRate	float64
+		maxIndividualBurstReq int
+		individualReqFillRate float64
+		shouldRateLimit bool
+	}
 }
 /*********************************************************************************************************************/
 // APPLICATION CONFIGURATION
@@ -91,6 +98,23 @@ func openDB(cfg config) (*sql.DB, error) {
     return dbPtr, nil
 }
 /*********************************************************************************************************************/
+/*
+GETINTENVVAR
+This is a function to get environment variables which are 
+stored as strings and convert them to integers
+for environment variables that need to be used as integers
+*/
+func getIntEnvVars(intEnvs *map[string]int, loggerPtr *slog.Logger) {
+	for varName := range *intEnvs {
+		envVar, err := strconv.Atoi(os.Getenv(varName))
+		if err != nil {
+			loggerPtr.Error(err.Error())
+			os.Exit(1)
+		}
+		(*intEnvs)[varName] = envVar
+	}
+}
+/*********************************************************************************************************************/
 // MAIN FUNC
 func main() {
 	// LOG SETUP
@@ -106,18 +130,19 @@ func main() {
 		logger.Error("Failed to load env variables", "err", err.Error())
 		os.Exit(1)
 	}
-	// Get the maxIdleConns and maxOpenConns from the env variables
+	// Get the maxIdleConns, maxOpenConns, maxGlobalBurstReq, globalReqFillRate
+	// maxIndividualBurstReq, individualReqFillRate from the env variables
 	// and convert them to integers
-	maxIdleConns, err := strconv.Atoi(os.Getenv("MAXIDLECONNS"))
-	if err != nil {
-		logger.Error(err.Error())
-		os.Exit(1)
+
+	intEnvs := map[string]int{
+		"MAXIDLECONNS":0,
+		"MAXOPENCONNS":0,
+		"MAXGLOBALBURSTREQ":0,
+		"FILLRATEGLOBALREQ":0,
+		"MAXINDIVIDUALBURSTREQ":0,
+		"FILLRATEINDIVIDUALREQ":0,
 	}
-	maxOpenConns, err :=strconv.Atoi(os.Getenv("MAXOPENCONNS"))
-	if err != nil {
-		logger.Error(err.Error())
-		os.Exit(1)
-	}
+	getIntEnvVars(&intEnvs, logger)
 /*********************************************************************************************************************/	
 	// Declare an instance of the config struct.
 	var cfg config
@@ -129,8 +154,13 @@ func main() {
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("GREENLIGHT_DB_DSN"), "the dsn for the database")
 	flag.DurationVar(&cfg.db.maxIdleTime, "conn-max-idle-time", 15 * time.Minute, "db conn-idle-timeout")
-	flag.IntVar(&cfg.db.maxIdleConns, "max-idle-conns", maxIdleConns, "maximum no. of idle connections")
-	flag.IntVar(&cfg.db.maxOpenConns, "max-open-conns", maxOpenConns, "maximum no. of db connections")
+	flag.IntVar(&cfg.db.maxIdleConns, "max-idle-conns", intEnvs["MAXIDLECONNS"], "maximum no. of idle connections")
+	flag.IntVar(&cfg.db.maxOpenConns, "max-open-conns", intEnvs["MAXOPENCONNS"], "maximum no. of db connections")
+	flag.IntVar(&cfg.rateLimit.maxGlobalBurstReq, "max-global-burst-req", intEnvs["MAXGLOBALBURSTREQ"], "maximum no. of burst globhal reqs")
+	flag.Float64Var(&cfg.rateLimit.globalReqFillRate, "global-req-fill-rate", float64(intEnvs["FILLRATEGLOBALREQ"]), "fill rate of global reqs")
+	flag.IntVar(&cfg.rateLimit.maxIndividualBurstReq, "max-individual-burst-req", intEnvs["MAXINDIVIDUALBURSTREQ"], "maximum no. of burst individual reqs")
+	flag.Float64Var(&cfg.rateLimit.individualReqFillRate, "individual-req-fill-rate", float64(intEnvs["FILLRATEINDIVIDUALREQ"]), "fill rate of individual reqs")
+	flag.BoolVar(&cfg.rateLimit.shouldRateLimit, "should-rate-limit", true, "whether to allow rate-limiting")
 	flag.Parse()
 /*********************************************************************************************************************/
 	// DATABASE SETUP

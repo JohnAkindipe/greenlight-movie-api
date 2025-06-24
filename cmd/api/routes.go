@@ -52,6 +52,6 @@ endpoint
 	routerPtr.HandlerFunc(http.MethodGet, "/v1/movies", appPtr.showAllMoviesHandler)
 
 	//return the http handler
-	// wrap the routerPtr inside the recoverPanic middleware
-	return appPtr.recoverPanic(routerPtr)
+	// recoverPanic -> rateLimit -> appRouter
+	return appPtr.recoverPanic(appPtr.rateLimit(routerPtr))
 }
