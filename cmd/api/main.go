@@ -4,10 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"flag"
-	"fmt"
 	"greenlight-movie-api/internal/data"
 	"log/slog"
-	"net/http"
 	"os"
 	"strconv"
 	"time"
@@ -141,6 +139,7 @@ func main() {
 		"FILLRATEGLOBALREQ":0,
 		"MAXINDIVIDUALBURSTREQ":0,
 		"FILLRATEINDIVIDUALREQ":0,
+		"DEFAULTPORT":0,
 	}
 	getIntEnvVars(&intEnvs, logger)
 /*********************************************************************************************************************/	
@@ -150,7 +149,7 @@ func main() {
 	// COMMAND LINE FLAGS
 	// Use flags to get the value for variables we'll use in our application from command-line flags.
 	// The IntVar and StringVar will automatically store the result of the flag in the destination
-	flag.IntVar(&cfg.port, "port", 3000, "This value specifies what port the server should listen on")
+	flag.IntVar(&cfg.port, "port", intEnvs["DEFAULTPORT"], "This value specifies what port the server should listen on")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("GREENLIGHT_DB_DSN"), "the dsn for the database")
 	flag.DurationVar(&cfg.db.maxIdleTime, "conn-max-idle-time", 15 * time.Minute, "db conn-idle-timeout")
@@ -196,23 +195,19 @@ func main() {
 		dbModel: data.NewModel(dbPtr),
 	}
 /*********************************************************************************************************************/
-	// SERVER SETUP
-	srvPtr := &http.Server{
-		Addr: fmt.Sprintf(":%d", cfg.port),
-		Handler: appPtr.routes(),
-		IdleTimeout: time.Minute,
-		ReadTimeout: 5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
-	}
+	err = appPtr.serve()
 /*********************************************************************************************************************/
-	// SERVER START THE HTTP SERVER
-	//log that we're starting the server at this port and in this environment
-	logger.Info("starting server", "addr", srvPtr.Addr, "env", cfg.env)
-	// call the listen and serve method of srvPtr
-	err = srvPtr.ListenAndServe()
-	// log error explaining why the server failed to run, if any
-	logger.Error(err.Error())
+	//I'm confused as to why we're checking if err is nil or not here
+	//surely (I postulate), the listenandServe method is in an infinite 
+	// loop, processing equests and never returns unless an error occurs
+	// in which case, if the listenAndServe thus return, it certainly is
+	// returning an error. This will only make sense, if it is possible
+	// for listenandServe to return a nil error (perhaps with graceful 
+	// shutdown?)
+	if err != nil {
+		// log error explaining why the server failed to run, if any
+		logger.Error(err.Error())
+	}
 /*********************************************************************************************************************/
 	// STOP THE SERVER
 	os.Exit(1)
