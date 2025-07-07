@@ -25,6 +25,7 @@ We’re going to wrap our MovieModel in a parent Models struct.  it has the bene
 // like a UserModel and PermissionModel, as our build progresses.
 type Models struct {
     MovieModel MovieModel
+    UserModel UserModel
 }
 
 /*
@@ -36,5 +37,6 @@ a "Models" object
 func NewModel(dbPtr *sql.DB) Models {
     return Models{
         MovieModel: MovieModel{DBPtr: dbPtr},
+        UserModel: UserModel{DBPtr: dbPtr},
     }
 }

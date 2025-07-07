@@ -63,3 +63,6 @@ But if you do need to support conflicting routes (for example, you might need to
 API exactly for backwards-compatibility), then I would recommend taking a look at chi, Gorilla mux or flow instead. 
 All of these are good routers which do permit conflicting routes.
 -------------------------------------------------------------------------------------------------------------------------
+CREATING AND EXECUTING MIGRATIONS (UP AND DOWN FILES)
+migrate create -seq -ext=.sql -dir=./migrations create_users_table //To create a new pair of up and down migration files
+migrate -path=./migrations -database=$GREENLIGHT_DB_DSN up //To run an up migration; DB_DSN is in env variables.
