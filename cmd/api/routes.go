@@ -51,6 +51,11 @@ endpoint
 	//To Get all the movies from the db: Also allows for filtering, sorting, and pagination
 	routerPtr.HandlerFunc(http.MethodGet, "/v1/movies", appPtr.showAllMoviesHandler)
 
+	//USERS ENDPOINT
+	//POST /v1/users
+	//To register(create) a new user
+	routerPtr.HandlerFunc(http.MethodPost, "/v1/users", appPtr.registerUserHandler)
+	
 	//return the http handler
 	// recoverPanic -> rateLimit -> appRouter
 	return appPtr.recoverPanic(appPtr.rateLimit(routerPtr))
