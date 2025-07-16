@@ -256,6 +256,29 @@ func (appPtr *application) PseudoreadCSV(key string, queryValidatorPtr *validato
 
     return csvSlice
 }
+
+func (appPtr *application) recoverChildPanic() {
+    if err := recover(); err != nil {
+        appPtr.logger.Error(fmt.Sprintf("%v", err))
+    }
+}
+
+//We would ideally call this function using the "go" keyword
+//so that it runs in a separate goroutine, someFunc will
+//run and any panics will be handled by the defer statement.
+func(appPtr *application) background(fn func()) {
+    go func() {
+        defer func() {
+            if err := recover(); err != nil {
+                appPtr.logger.Error(fmt.Sprintf("%v", err))
+            }
+        }()
+        //we cannot run this func in its own goroutine
+        //when a goroutine panics, only deferred statements
+        //inside the goroutine itself can recover panics
+        fn()
+    }()    
+}
 /*********************************************************************************************************************/
 /*
 QUESTION:

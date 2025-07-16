@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"flag"
 	"greenlight-movie-api/internal/data"
+	"greenlight-movie-api/internal/mailer"
 	"log/slog"
 	"os"
 	"strconv"
@@ -43,6 +44,13 @@ type config struct {
 		individualReqFillRate float64
 		shouldRateLimit bool
 	}
+	smtp struct {
+		host string
+		port int
+		username string
+		password string
+		sender string
+	}
 }
 /*********************************************************************************************************************/
 // APPLICATION CONFIGURATION
@@ -54,6 +62,7 @@ type application struct {
     config config
     logger *slog.Logger
 	dbModel data.Models
+	mailer mailer.Mailer
 }
 /*********************************************************************************************************************/
 // OPEN DB to open a connection pool
@@ -140,6 +149,7 @@ func main() {
 		"MAXINDIVIDUALBURSTREQ":0,
 		"FILLRATEINDIVIDUALREQ":0,
 		"DEFAULTPORT":0,
+		"SMTP_PORT":0,
 	}
 	getIntEnvVars(&intEnvs, logger)
 /*********************************************************************************************************************/	
@@ -160,6 +170,11 @@ func main() {
 	flag.IntVar(&cfg.rateLimit.maxIndividualBurstReq, "max-individual-burst-req", intEnvs["MAXINDIVIDUALBURSTREQ"], "maximum no. of burst individual reqs")
 	flag.Float64Var(&cfg.rateLimit.individualReqFillRate, "individual-req-fill-rate", float64(intEnvs["FILLRATEINDIVIDUALREQ"]), "fill rate of individual reqs")
 	flag.BoolVar(&cfg.rateLimit.shouldRateLimit, "should-rate-limit", true, "whether to allow rate-limiting")
+	flag.IntVar(&cfg.smtp.port, "smtp-port", intEnvs["SMTP_PORT"], "SMTP port")
+	flag.StringVar(&cfg.smtp.host, "smtp-host", os.Getenv("SMTP_HOST"), "SMTP host")
+	flag.StringVar(&cfg.smtp.username, "smtp-username", os.Getenv("SMTP_USERNAME"), "SMTP username")
+	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("SMTP_PASSWORD"), "SMTP password")
+    flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.akindipejohn.net>", "SMTP sender")
 	flag.Parse()
 /*********************************************************************************************************************/
 	// DATABASE SETUP
@@ -180,6 +195,15 @@ func main() {
     // established.
     logger.Info("database connection pool established")
 /*********************************************************************************************************************/
+	//MAIL SERVICE SETUP
+	mailer := mailer.New(
+		cfg.smtp.host, 
+		cfg.smtp.port, 
+		cfg.smtp.username, 
+		cfg.smtp.password, 
+		cfg.smtp.sender,
+	)
+/*********************************************************************************************************************/
 	// APP STRUCT SETUP
 	// Initialize the application with the config and logger we've set up
 	/*
@@ -193,6 +217,7 @@ func main() {
 		config: cfg,
 		logger: logger,
 		dbModel: data.NewModel(dbPtr),
+		mailer: mailer,
 	}
 /*********************************************************************************************************************/
 	err = appPtr.serve()

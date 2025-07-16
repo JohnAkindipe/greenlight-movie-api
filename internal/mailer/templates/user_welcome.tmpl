@@ -1,0 +1,45 @@
+Inside this file we’re going to define three named templates to use as part of our welcome email:
+
+A "subject" template containing the subject line for the email.
+A "plainBody" template containing the plain-text variant of the email message body.
+A "htmlBody" template containing the HTML variant of the email message body.
+
+{{define "subject"}}Welcome to Greenlight!{{end}}
+
+{{define "plainBody"}}
+Hi,
+
+Thanks for signing up for a Greenlight account. We're excited to have you on board!
+
+For future reference, your user ID number is {{.ID}}.
+
+Thanks,
+
+The Greenlight Team
+{{end}}
+
+{{define "htmlBody"}}
+<!doctype html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+</head>
+
+<body>
+    <p>Hi,</p>
+    <p>Thanks for signing up for a Greenlight account. We're excited to have you on board!</p>
+    <p>For future reference, your user ID number is {{.ID}}.</p>
+    <p>Thanks,</p>
+    <p>The Greenlight Team</p>
+</body>
+
+</html>
+{{end}}
+
+/*********************************************************************************************************************/
+NOTE ON STORING TEMPLATES IN DB FOR USER-EDITABLE TEMPLATES
+Note: If you need to frequently change the text of emails or require them to be user-editable, then it might be 
+appropriate to store these templates as strings in your database instead. But I’ve found that storing them in a file, 
+like we are here, is a less complicated approach and a good starting point for most projects.
