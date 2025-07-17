@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -58,11 +59,17 @@ type config struct {
 // and middleware. At the moment this contains a copy of the config struct, a copy of
 // the data.Models struct and a logger, but it will grow to include a lot more as our 
 // build progresses.
+//we use the wg to cause parent functions to wait for their child goroutine to complete execution
+//and call wg.Done() before they return. This is important because it ensures that in case of
+//a shutdown signal, functions don't return until their child goroutine do. Therefore,
+//preventing us from killing spawned child goroutines prematurely when they may be in the process of
+//executing b/g tasks (e.g sending an email). Refer Notes()
 type application struct {
     config config
     logger *slog.Logger
 	dbModel data.Models
 	mailer mailer.Mailer
+	wg *sync.WaitGroup //I use a pointer whereas the author does not
 }
 /*********************************************************************************************************************/
 // OPEN DB to open a connection pool
@@ -218,6 +225,7 @@ func main() {
 		logger: logger,
 		dbModel: data.NewModel(dbPtr),
 		mailer: mailer,
+		wg: &sync.WaitGroup{},
 	}
 /*********************************************************************************************************************/
 	err = appPtr.serve()
@@ -238,3 +246,11 @@ func main() {
 	os.Exit(1)
 }
 
+/*********************************************************************************************************************/
+/*
+NOTES
+1. PLACING THE WG ON THE APP STRUCT
+Placing a wg on the app struct ensures that we can access the same waitgroup from many handlers which can increase the
+waitGroup and wait for their children to call Done() on the waitgroup before returning, thus allowing us to have a
+central place where the waitgroup is co-ordinated for the entire application.
+*/

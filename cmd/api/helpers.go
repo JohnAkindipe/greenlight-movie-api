@@ -266,12 +266,16 @@ func (appPtr *application) recoverChildPanic() {
 //We would ideally call this function using the "go" keyword
 //so that it runs in a separate goroutine, someFunc will
 //run and any panics will be handled by the defer statement.
+//Refer notes(2) on benefits of putting waitgroup in "background"
 func(appPtr *application) background(fn func()) {
+    appPtr.wg.Add(1)
     go func() {
         defer func() {
             if err := recover(); err != nil {
                 appPtr.logger.Error(fmt.Sprintf("%v", err))
             }
+            //the author calls done in a separate call to defer
+            appPtr.wg.Done()
         }()
         //we cannot run this func in its own goroutine
         //when a goroutine panics, only deferred statements
@@ -294,4 +298,12 @@ of this pointer as a second argument to errors.As, in essence, why must this be 
 an error to merely pass in the pointer value (i.e. pass in ae as the second parameter) as the second parameter to 
 errors.As, it is usually passed as address of pointer value. In essence we are passing the address of an address.
  Why is this the case?
+
+ NOTES
+ 1. CALLING WG.ADD IN BACKGRUND
+ It makes logical sense to call wg.Add() in background instead of from the calling function (as I did before). By
+ encapsulatiing all the logic of calling goroutines in our entire application in one place, we reduce the need for
+ repetition, as well as eleminate the possibility of forgetting to call the wg.Add(1) from the calling function.
+ All the logic for launching background goroutines in our app is in "background", including adding to the waitgroup,
+ calling the goroutine and so on. A simple call to "background" thus handles all the logistics.
 */

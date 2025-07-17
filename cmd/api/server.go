@@ -15,6 +15,7 @@ import (
 func (appPtr *application) serve() error {
 
 	shutdownErrorCh := make(chan error)
+	defer close(shutdownErrorCh)
 	// SERVER SETUP
 	srvPtr := &http.Server{
 		Addr:         fmt.Sprintf(":%d", appPtr.config.port),
@@ -30,6 +31,7 @@ func (appPtr *application) serve() error {
         // Create a quit channel which carries os.Signal values.
 		// Read Notes(1) for why quit has to be a buffered channel
         quit := make(chan os.Signal, 1)
+		defer close(quit)
 
         // Use signal.Notify() to listen for incoming SIGINT and SIGTERM signals and 
         // relay them to the quit channel. Any other signals will not be caught by
@@ -50,17 +52,29 @@ func (appPtr *application) serve() error {
         ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
         defer cancel()
 
+		//wait for all descendant goroutines to be done before continuing to
+		//call shutdown
+		appPtr.wg.Wait()
         // Call Shutdown() on our server, passing in the context we just made.
         // Shutdown() will return nil if the graceful shutdown was successful, or an
         // error (which may happen because of a problem closing the listeners, or 
         // because the shutdown didn't complete before the 30-second context deadline is
-        // hit). We relay this return value to the shutdownError channel.
+        // hit). If there was an error with shutdown we return the error on the shutDownCh
+		// otherwise, we wait for backgrund tasks to complete
 		err := srvPtr.Shutdown(ctx); 
-		// if err != nil {
-		// 	appPtr.logger.Error("shutdown error", "error", err)
-		// }
+		if err != nil {
+			appPtr.logger.Error("shutdown error", "error", err)
+			shutdownErrorCh <- err
+		}
 
-		shutdownErrorCh <- err
+        // Log a message to say that we're waiting for any background goroutines to
+        // complete their tasks.
+        appPtr.logger.Info("completing background tasks", "addr", srvPtr.Addr)
+		appPtr.wg.Wait()
+		//If we had previously sent a value on the shutdownErrCh as if there was
+		//a shutdown error, when we reach this code, this goroutine will block
+		//until the app terminates
+		shutdownErrorCh <- nil
     }()
 
 	// SERVER START THE HTTP SERVER
@@ -73,6 +87,8 @@ func (appPtr *application) serve() error {
     // return a http.ErrServerClosed error. So if we see this error, it is actually a
     // good thing and an indication that the graceful shutdown has started. So we check 
     // specifically for this, only returning the error if it is NOT http.ErrServerClosed. 
+	//If listenandserve returns an error for any other reason, this logic is not executing
+	//graceful shutdown because we return before receiving from the shutdownErrCh
 	if !errors.Is(err, http.ErrServerClosed) {
 		appPtr.logger.Error("listen and serve error", "error", err)
 		return err
