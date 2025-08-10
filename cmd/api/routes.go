@@ -55,6 +55,10 @@ endpoint
 	//POST /v1/users
 	//To register(create) a new user
 	routerPtr.HandlerFunc(http.MethodPost, "/v1/users", appPtr.registerUserHandler)
+
+	//PUT /v1/users/activated
+	//To activate a specific user
+	routerPtr.HandlerFunc(http.MethodPut, "/v1/users/activated", appPtr.activateUserHandler)
 	
 	//return the http handler
 	// recoverPanic -> rateLimit -> appRouter

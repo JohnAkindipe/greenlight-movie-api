@@ -6,6 +6,7 @@ import (
 	"greenlight-movie-api/internal/data"
 	"greenlight-movie-api/internal/validator"
 	"net/http"
+	"time"
 )
 
 /*
@@ -21,30 +22,7 @@ DUMMY USER
 //To create a new user
 func (appPtr *application) registerUserHandler(w http.ResponseWriter, r *http.Request) {
 	var user data.User
-	userRegistered := make(chan bool, 1)
-	defer close(userRegistered)
-	//Launch a background goroutine to send a welcome email to the user
-	//After they have successfully been registered. We only want this
-	//email to be sent if they were successfully reigstered. We use a
-	//channel to communicate this from the parent to the child goroutine.
-	appPtr.background(func() {
-		registered := <-userRegistered
-		if registered {
-			//We have successfully inserted the user into our db.
-			//send an email, (handling any errors)
-			fmt.Println(user.Email)
-			err := appPtr.mailer.Send(user.Email, "user_welcome.tmpl", user)
-			if err != nil {
-				appPtr.logger.Error(err.Error())
-				//See notes(3) below for why we log instead
-			}
-			return
-		}
-		//receiving weird timeout errors randomly, also works randomly
-		//need to investigate why
-		fmt.Println("registration email: not sent")
-		// panic("test panic")
-	})
+
 	//Define a struct that describes the data
 	//we expect for a new user
 	type newUserInput struct {
@@ -94,9 +72,6 @@ func (appPtr *application) registerUserHandler(w http.ResponseWriter, r *http.Re
 	//database
 	err = appPtr.dbModel.UserModel.InsertUser(&user)
 	if err != nil {
-		//user registration unsuccessful, let child goroutine know
-		//not to send welcome email
-		userRegistered <- false
 		switch {
 			case errors.Is(err, data.ErrDuplicateEmail):
 				userValidatorPtr.AddError("email", "an account exists already with that email")
@@ -106,9 +81,35 @@ func (appPtr *application) registerUserHandler(w http.ResponseWriter, r *http.Re
 		}
 		return
 	}
-	//Let the child goroutine know that we have successfully registered the user
-	userRegistered <- true
 
+	//Create activation token
+	tokenPtr, err := appPtr.dbModel.TokenModel.New(data.ScopeActivation, user.ID, 3*24*time.Hour)
+	if err != nil {
+		appPtr.serverErrorResponse(w, r, err)
+		return
+	}
+	
+	//Launch a background goroutine to send a welcome email to the user
+	//After they have successfully been registered. We only want this
+	//email to be sent if they were successfully reigstered.
+	appPtr.background(func() {
+			//We have successfully inserted the user into our db.
+			//send an email, (handling any errors)
+			fmt.Println(user.Email)
+			data := map[string]any{
+				"userID": user.ID,
+				"activationToken": tokenPtr.Plaintext,
+			}
+			err := appPtr.mailer.Send(
+				user.Email, 
+				"user_welcome.tmpl", 
+				data,
+			)
+			if err != nil {
+				appPtr.logger.Error(err.Error())
+				//See notes(3) below for why we log instead
+			}
+	})
 	//then an html reponse to the user that we have successfully created the user
 	//with the data of the newly created user in json. Send an error response
 	//if (for whatever reason), we are unable to send the json response
@@ -126,10 +127,35 @@ func (appPtr *application) registerUserHandler(w http.ResponseWriter, r *http.Re
 	}
 }
 
-//GET /v1/user/:email
-//To get a user by their email
-func (appPtr *application) getUser(w http.ResponseWriter, r *http.Request) {
+//PUT /v1/users/activated
+//To activate a specific user
+func (appPtr *application) activateUserHandler(w http.ResponseWriter, r *http.Request) {
+	//read token from request parameter named "activation token"
+	token := r.FormValue("token")
 
+	//create a new token validator struct to add data about validating
+	//a token
+	tokenValidator := validator.New()
+	data.ValidateToken(tokenValidator, token)
+	
+	//If the token validator says the token is invalid
+	if !tokenValidator.Valid() {
+		//send an error response to the client.
+		appPtr.failedValidationResponse(w, r, tokenValidator.Errors)
+		return
+	}
+
+	//token is in valid format. token may or may not be valid data
+	//e.g. it might have expired or not present in our db.
+	//look-up the token in our db and get the associated user.
+	userPtr, err := appPtr.dbModel.UserModel.GetUserForToken(token, "activation")
+	if err != nil { //send error response (token expired or doesn't exist in db)
+		appPtr.errorResponse(w, r, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	//token validated successfully
+	appPtr.writeJSON(w, http.StatusAccepted, envelope{"user": userPtr}, nil)
 }
 
 /*********************************************************************************************************************/
@@ -214,4 +240,16 @@ would try to set the response header twice, which is an error) on the same reque
 goroutine in the event that we encounter an error while sending the mail, hence the decision to log the error in the 
 goroutine instead, so that we can safely send a serverErrorResponse to the user, should we encounter any error sending
 a JSON response to inform them that the user was successfully created.
+
+4. WORKFLOW FOR USER ACTIVATION
+- The user submits the plaintext activation token (which they just received in their email) to the PUT /v1/users/activated 
+endpoint. 
+- We validate the plaintext token to check that it matches the expected format, sending the client an error message 
+if necessary.
+- We then call the UserModel.GetForToken() method to retrieve the details of the user associated with the provided token. If 
+there is no matching token found, or it has expired, we send the client an error message.
+- We activate the associated user by setting activated = true on the user record and update it in our database.
+- We delete all activation tokens for the user from the tokens table. We can do this using the TokenModel.DeleteAllForUser() 
+method that we made earlier.
+- We send the updated user details in a JSON response.
 */

@@ -26,6 +26,7 @@ We’re going to wrap our MovieModel in a parent Models struct.  it has the bene
 type Models struct {
     MovieModel MovieModel
     UserModel UserModel
+    TokenModel TokenModel
 }
 
 /*
@@ -38,5 +39,6 @@ func NewModel(dbPtr *sql.DB) Models {
     return Models{
         MovieModel: MovieModel{DBPtr: dbPtr},
         UserModel: UserModel{DBPtr: dbPtr},
+        TokenModel: TokenModel{DBPtr: dbPtr},
     }
 }

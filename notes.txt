@@ -66,3 +66,42 @@ All of these are good routers which do permit conflicting routes.
 CREATING AND EXECUTING MIGRATIONS (UP AND DOWN FILES)
 migrate create -seq -ext=.sql -dir=./migrations create_users_table //To create a new pair of up and down migration files
 migrate -path=./migrations -database=$GREENLIGHT_DB_DSN up //To run an up migration; DB_DSN is in env variables.
+-------------------------------------------------------------------------------------------------------------------------
+ACCOUNT ACTIVATION WORKFLOW
+To give you an overview upfront, the account activation process will work like this:
+- As part of the registration process for a new user we will create a cryptographically-secure random activation token 
+that is impossible to guess.
+- We will then store a hash of this activation token in a new tokens table, alongside the new user’s ID and an expiry time 
+for the token.
+- We will send the original (unhashed) activation token to the user in their welcome email.
+- The user subsequently submits their token to a new PUT /v1/users/activated endpoint.
+- If the hash of the token exists in the tokens table and hasn’t expired, then we’ll update the activated status for the 
+relevant user to true.
+- Lastly, we’ll delete the activation token from our tokens table so that it can’t be used again.
+-------------------------------------------------------------------------------------------------------------------------
+In this section of the book, you’ll learn how to:
+- Implement a secure ‘account activation’ workflow which verifies a new user’s email address.
+- Generate cryptographically-secure random tokens using Go’s crypto/rand and encoding/base32 packages.
+- Generate fast hashes of data using the crypto/sha256 package.
+- Implement patterns for working with cross-table relationships in your database, including setting up foreign keys and 
+retrieving related data via SQL JOIN queries.
+-------------------------------------------------------------------------------------------------------------------------
+UNSERSTANDING CIRCULAR DEPENDENCIES
+Noticing a pattern that helps me understand circular dependencies. A Method on a struct can call another method. e.g. in
+the token package, the tokenModel.New method calls tokenModel.insert. We can say the New() method depends on the Insert()
+method. We will however introduce a circular dependency if tokenModel.Insert() should include a call to tokenModel.New().
+Logically, this doesn't make sense because if we call New(), New() calls Insert() and Insert() calls New() and we end up
+in a spiral never-ending loop. Hence dependencies should only flow in one direction and not bi-directional. In the case
+where the call to New() for example is not directly inside Insert() but in another function called by Insert(), it is very
+easy to understand this, by imagining the external function unfolded inside the Insert() function. This way, it doesn't
+matter how far removed from Insert() a call to New() is, by unfolding all functions inside Insert(), we can understand if
+we have a circular dependency or not. In short, to avoid a circular dependency, Insert() can never call New() directly or 
+call a fn which itself calls New() or any of its descendants calls New().
+-------------------------------------------------------------------------------------------------------------------------
+MATH/RAND AND CRYPTO/RAND FOR CRYPTOGRAPHY
+Go also has a math/rand package which provides a deterministic pseudo-random number generator (PRNG). It’s important that 
+you never use the math/rand package for any purpose where cryptographic security is required, such as generating tokens 
+or secrets
+
+In fact, it’s arguably best to use crypto/rand as standard practice. Only opt for using math/rand in specific scenarios 
+where you are certain that a deterministic PRNG is acceptable, and you actively need the faster performance of math/rand.
