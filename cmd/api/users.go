@@ -129,14 +129,22 @@ func (appPtr *application) registerUserHandler(w http.ResponseWriter, r *http.Re
 
 //PUT /v1/users/activated
 //To activate a specific user
+//TODO: Might need a background goroutine which runs in the background and intermittently deletes expired tokens from the db
 func (appPtr *application) activateUserHandler(w http.ResponseWriter, r *http.Request) {
-	//read token from request parameter named "activation token"
-	token := r.FormValue("token")
+	var reqInput struct {
+		TokenPlaintext string `json:"token"`
+	}
 
+	//Read the request body into the reqInput struct
+	err := appPtr.readJSON(w, r, &reqInput)
+	if err != nil {
+		appPtr.badRequestResponse(w, r, err)
+		return
+	}
 	//create a new token validator struct to add data about validating
 	//a token
 	tokenValidator := validator.New()
-	data.ValidateToken(tokenValidator, token)
+	data.ValidateToken(tokenValidator, reqInput.TokenPlaintext)
 	
 	//If the token validator says the token is invalid
 	if !tokenValidator.Valid() {
@@ -145,17 +153,42 @@ func (appPtr *application) activateUserHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	//token is in valid format. token may or may not be valid data
-	//e.g. it might have expired or not present in our db.
-	//look-up the token in our db and get the associated user.
-	userPtr, err := appPtr.dbModel.UserModel.GetUserForToken(token, "activation")
-	if err != nil { //send error response (token expired or doesn't exist in db)
-		appPtr.errorResponse(w, r, http.StatusBadRequest, err.Error())
+	//Lookup the token in our database; it may or may not be present
+	tokenPtr, err := appPtr.dbModel.TokenModel.GetToken(reqInput.TokenPlaintext, data.ScopeActivation)
+	if err != nil || time.Since(tokenPtr.Expiry) > 0{
+		switch {
+			case errors.Is(err, data.ErrRecordNotFound): //token is not present in our db
+				tokenValidator.AddError("token", "invalid or expired token")
+				appPtr.failedValidationResponse(w, r, tokenValidator.Errors)
+			case time.Since(tokenPtr.Expiry) > 0: //token has expired
+				tokenValidator.AddError("token", "invalid or expired token")
+				appPtr.failedValidationResponse(w, r, tokenValidator.Errors)
+			default: //most likely a server error
+				appPtr.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+	//token is valid, present in our db and has not expired
+	//Activate related user: Set activated to true. and increase the version
+	userPtr, err := appPtr.dbModel.UserModel.UpdateUserForToken(tokenPtr.Hash, data.ScopeActivation)
+	//will not check for recordnotfound err here, cos it's impossible
+	if err != nil { //most likely a server error
+		appPtr.serverErrorResponse(w, r, err)
+		return
+	}
+	//Delete all activation tokens for this user
+	err = appPtr.dbModel.TokenModel.DeleteAllForUser(data.ScopeActivation, userPtr.ID)
+	if err != nil { //most likely a server error
+		appPtr.serverErrorResponse(w, r, err)
 		return
 	}
 
-	//token validated successfully
-	appPtr.writeJSON(w, http.StatusAccepted, envelope{"user": userPtr}, nil)
+	//we should probably send an email that they've been activated successfully
+	//user activated successfully
+	err = appPtr.writeJSON(w, http.StatusAccepted, envelope{"user": userPtr}, nil)
+	if err != nil {
+		appPtr.serverErrorResponse(w, r, err)
+	}
 }
 
 /*********************************************************************************************************************/

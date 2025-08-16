@@ -2,10 +2,8 @@ package data
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"errors"
-	"fmt"
 	"greenlight-movie-api/internal/validator"
 	"time"
 
@@ -302,83 +300,68 @@ func (userModel UserModel) UpdateUser(userPtr *User) error {
 //This function will check the token table for a given token and return the user associated with the token
 //Appears we may have a general token table where we store different types of token (session, activation tokens etc)
 //the tokenType checks what type of token we want to get for a particular user from our general-purpose token table.
-func (userModel UserModel) GetUserForToken(token, tokenType string) (*User, error) {
-	user := User{}
-	var retrievedToken Token
-
-	tokenHash := sha256.Sum256([]byte(token))
+func (userModel UserModel) UpdateUserForToken(tokenHash []byte, tokenType string) (*User, error) {
+	var user User
 
     query := `
-        SELECT users.email, tokens.expires_at
-		FROM tokens JOIN users ON token(user_id) = users(id)
-		WHERE tokens.hash = $1 
+        UPDATE users
+		SET activated = true, version = version + 1
+		FROM tokens
+		WHERE tokens.user_id = users.id
+		AND tokens.hash = $1 
 		AND tokens.scope = $2
+		RETURNING users.*
 	`
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 3 * time.Second)
 	defer cancelFunc()
 
 	queryResult := userModel.DBPtr.QueryRowContext(ctx, query, tokenHash, tokenType)
 	err := queryResult.Scan(
-		&user.Email,
-		&retrievedToken.Expiry,
+		&user.ID, &user.Created_At, &user.Name, &user.Email, &user.Password.hash, &user.Activated,
+		&user.Version,
 	)
 
 	//if there was an error
-	if err != nil {
-		switch {
-			case errors.Is(err, sql.ErrNoRows): //no rows were returned i.e. token doesn't exist
-				return nil, ErrInvalidToken
-			default: //for all oher errors
-				return nil, err
-		}
-	}
+    if err != nil {
+        switch {
+        case errors.Is(err, sql.ErrNoRows):
+            return nil, ErrRecordNotFound
+        default:
+            return nil, err
+        }
+    }
 
-	//We know at this point onwards that the token exists in our db
-	retrievedToken.Hash = tokenHash[:]
-
-	//TODO: might need a goroutine that deletes expired tokens from the
-	//token db periodically
-
-	//token has expired
-	if time.Since(retrievedToken.Expiry) > 0 {
-		//TODO implement a delete token fn (done)
-		err = DeleteToken(userModel.DBPtr, retrievedToken.Hash)
-		if err != nil {
-			return nil, fmt.Errorf("delete token: %w", ErrExpiredToken)
-		}
-		return nil, ErrExpiredToken
-	}
-
-	//token exists and has not expired
-	//set activated to true on the user and return all columns
-	query = `
-		UPDATE users
-		SET activated = true, version = version + 1
-		WHERE email = $1
-		RETURNING *
-	`
-	ctx, cancelFunc = context.WithTimeout(context.Background(), 3 * time.Second)
-	defer cancelFunc()
-
-	rowPtr := userModel.DBPtr.QueryRowContext(ctx, query, user.Email)
-	err = rowPtr.Scan(&user.ID, &user.Created_At, &user.Name, &user.Email, &user.Password, &user.Activated, &user.Version)
-	if err != nil { //curious what kind of error we could possibly encounter here?
-		return nil, err
-	}
-
-	//don't feel comfortable returning an error if this particular delete token operation fails
-	//the token exists in the db and has not expired, we shouldn't be returning an error to our
-	//user if our delete operation fails. the user should get an error if the token expired or
-	//doesn't exist in the db. neither is true in this case.
-	err = DeleteToken(userModel.DBPtr, retrievedToken.Hash)
-	if err != nil {
-		//log the error or somn
-		panic(err) //i think a panic is better in this case; this is an operation we don't
-		//expect to fail, if it does we should let the user know we have a sever error.
-		//which will be communicated to the client from our recover middleware, when we panic.
-	}
-
+	//user has already been updated at this point
 	return &user, nil
+
+	// //token exists and has not expired
+	// //set activated to true on the user and return all columns
+	// query = `
+	// 	UPDATE users
+	// 	SET activated = true, version = version + 1
+	// 	WHERE email = $1
+	// 	RETURNING *
+	// `
+	// ctx, cancelFunc = context.WithTimeout(context.Background(), 3 * time.Second)
+	// defer cancelFunc()
+
+	// rowPtr := userModel.DBPtr.QueryRowContext(ctx, query, user.Email)
+	// err = rowPtr.Scan(&user.ID, &user.Created_At, &user.Name, &user.Email, &user.Password, &user.Activated, &user.Version)
+	// if err != nil { //curious what kind of error we could possibly encounter here?
+	// 	return nil, err
+	// }
+
+	// //don't feel comfortable returning an error if this particular delete token operation fails
+	// //the token exists in the db and has not expired, we shouldn't be returning an error to our
+	// //user if our delete operation fails. the user should get an error if the token expired or
+	// //doesn't exist in the db. neither is true in this case.
+	// err = DeleteToken(userModel.DBPtr, retrievedToken.Hash)
+	// if err != nil {
+	// 	//log the error or somn
+	// 	panic(err) //i think a panic is better in this case; this is an operation we don't
+	// 	//expect to fail, if it does we should let the user know we have a sever error.
+	// 	//which will be communicated to the client from our recover middleware, when we panic.
+	// }
 }
 
 

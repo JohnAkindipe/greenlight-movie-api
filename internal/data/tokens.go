@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base32"
+	"errors"
 	"greenlight-movie-api/internal/validator"
 	"time"
 )
@@ -138,9 +139,45 @@ func (tokenModel TokenModel) DeleteAllForUser(scope string, userID int64) error 
 	query := `
 		DELETE FROM tokens
 		WHERE scope = $1
-		AND userID = $2
+		AND user_id = $2
 	`
 
 	_, err := tokenModel.DBPtr.ExecContext(ctx, query, scope, userID)
 	return err //err may have a value or be nil
+}
+
+//GetToken - This will get a token from our database
+//We also need the scope to be sure that not only does
+//the token exist in our db, it also has the right scope i.e. is it an activation,
+//authentication or password-reset token
+func (tokenModel TokenModel) GetToken(tokenPlaintext, scope string) (*Token, error) {
+	//Generate the hash of the given tokenPlaintext
+	hash := sha256.Sum256(([]byte(tokenPlaintext)))
+	tokenHash := hash[:]
+
+	//The token variable which will hold the token data to return
+	var token Token
+
+	query := `SELECT * FROM tokens WHERE hash = $1 AND scope = $2`
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 3 * time.Second)
+	defer cancelFunc()
+
+	rowPtr := tokenModel.DBPtr.QueryRowContext(ctx, query, tokenHash, scope)
+	err := rowPtr.Scan(
+		&token.Hash, &token.Scope, &token.Expiry, &token.UserID,
+	)
+
+	//Handle the error if the token doesn't exist or any other errors
+	if err != nil {
+		switch {
+			case errors.Is(err, sql.ErrNoRows):
+				return nil, ErrRecordNotFound
+			default:
+				return nil, err
+		}
+	}
+	//Token exists in our db.
+	token.Plaintext = tokenPlaintext
+	return &token, nil
 }
