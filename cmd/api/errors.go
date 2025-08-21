@@ -137,3 +137,13 @@ func (appPtr *application) rateLimitExceededResponse(w http.ResponseWriter, r *h
 	// send an error to try again later
 	appPtr.errorResponse(w, r, http.StatusTooManyRequests, "too many requests - try again later")
 }
+/*********************************************************************************************************************/
+/*
+INVALID CREDENTIALS RESPONSE
+This is for whenever a user submits invalid email or password for whatever
+reason including to get an auth-token or to log in.
+*/
+func (appPtr *application) invalidCredentialsResponse(w http.ResponseWriter, r *http.Request) {
+	// send an error to try again later
+	appPtr.errorResponse(w, r, http.StatusUnauthorized, "invalid credentials")
+}

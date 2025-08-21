@@ -60,12 +60,17 @@ endpoint
 	//To activate a specific user
 	routerPtr.HandlerFunc(http.MethodPut, "/v1/users/activated", appPtr.activateUserHandler)
 
+	//TOKENS
 	//STANDALONE ACTIVATION ENDPOINT
 	//POST /v1/tokens/activation
 	//Specifically to generate a new activation token such as if a user doesn't initially activate their account 
 	//before token expiry or they never receive the welcome email containing the token for some reason.
 	routerPtr.HandlerFunc(http.MethodPost, "/v1/tokens/activation", appPtr.createActivationTokenHandler)
-	
+	//POST /v1/tokens/authentication
+	//Authentication Token Generation
+	//Allow a client to exchange their credentials (email address and password) for a stateful authentication token.
+	routerPtr.HandlerFunc(http.MethodPost, "/v1/tokens/authentication", appPtr.createAuthenticationTokenHandler)
+
 	//return the http handler
 	// recoverPanic -> rateLimit -> appRouter
 	return appPtr.recoverPanic(appPtr.rateLimit(routerPtr))

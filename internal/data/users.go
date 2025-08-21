@@ -48,6 +48,7 @@ type password struct{
 /*********************************************************************************************************************/
 // Additionally, we’re going to want to use the email and plaintext password validation checks again independently 
 // later, so we’ll define those checks in some standalone functions.
+
 //VALIDATE EMAIL
 //Check that the Email field is not the empty string, and that it matches the regular expression for email addresses 
 //that we added in our validator package.
@@ -112,7 +113,7 @@ func ValidateUser(validatorPtr *validator.Validator, userPtr *User) {
 	//VALIDATE PLAINTEXT PASSWORD
 	//We should check if the plaintext which is a *string is nil
 	//before passing it to the validate function to prevent a
-	//nil pointer dereference.
+	//nil pointer dereference error.
 	if userPtr.Password.plaintext != nil {
 		ValidatePlaintextPassword(validatorPtr, *userPtr.Password.plaintext)
 	}
