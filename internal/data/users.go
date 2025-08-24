@@ -243,6 +243,47 @@ func(userModel UserModel) GetUserByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
+func(userModel UserModel) GetUserByID(userID int64) (*User, error) {
+	// Create a user variable where we will copy the result of
+	// the db query into.
+	var user User
+	query := `
+		SELECT * FROM users WHERE id = $1
+	`
+
+	ctx,cancelFunc := context.WithTimeout(context.Background(), (3 * time.Second))
+	defer cancelFunc()
+
+	rowPtr := userModel.DBPtr.QueryRowContext(
+		ctx,
+		query, 
+		userID,
+	)
+	// scan the response data into the fields of the User struct. 
+	err := rowPtr.Scan(       
+		&user.ID,
+        &user.Created_At,
+        &user.Name,
+        &user.Email,
+        &user.Password.hash,
+        &user.Activated,
+        &user.Version,
+	)
+
+    // Handle any errors. If there was no matching user found, Scan() will return 
+    // a sql.ErrNoRows error. We check for this and return our custom ErrRecordNotFound 
+    // error instead.
+	if err != nil {
+		switch {
+			case errors.Is(err, sql.ErrNoRows):
+				return nil, ErrRecordNotFound
+			default:
+				return nil, err
+		}
+	}
+	return &user, nil
+}
+
 /*
 UPDATE USER - Update the details for a specific user. Notice that we check against the version 
 field to help prevent any race conditions during the request cycle, just like we did

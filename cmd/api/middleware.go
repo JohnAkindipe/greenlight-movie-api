@@ -1,12 +1,16 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"greenlight-movie-api/internal/data"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/pascaldekloe/jwt"
 	"golang.org/x/time/rate"
 )
 
@@ -146,6 +150,77 @@ func (appPtr *application) rateLimit(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (appPtr *application) authenticate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Parse the JWT and extract the claims. This will return an error if the JWT 
+			// contents doesn't match the signature (i.e. the token has been tampered with)
+			// or the algorithm isn't valid.	
+			w.Header().Add("Vary", "Authorization")
+			authorizationHeader := r.Header.Get("Authorization")
+			if authorizationHeader == "" {
+				//TODO: Still missing some code from the jwt appendix rewrite
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			headerParts := strings.Split(authorizationHeader, " ")
+			if len(headerParts) != 2 || headerParts[0] != "Bearer" {
+				//TODO: appPtr.invalidAuthenticationTokenResponse(w, r)
+				return
+			}
+
+			token := headerParts[1]
+			// Parse the JWT and extract the claims. This will return an error if the JWT 
+			// contents doesn't match the signature (i.e. the token has been tampered with)
+			// or the algorithm isn't valid.			
+			claims, err := jwt.HMACCheck([]byte(token), []byte(appPtr.config.jwt.secret))		
+			if err != nil {
+				//TODO: appPtr.invalidAuthenticationTokenResponse(w, r)
+				return
+			}
+	        //Check if the JWT is still valid at this moment in time.
+			if !claims.Valid(time.Now()) {
+				//TODO: appPtr.invalidAuthenticationTokenResponse(w, r)
+				return
+			}
+            //Check that the issuer is our application.
+			if claims.Issuer != "greenlight.akindipe.john" {
+				//TODO: appPtr.invalidAuthenticationTokenResponse(w, r)
+				return
+			}
+			if !claims.AcceptAudience("greenlight.akindipe.john") {
+				//TODO: appPtr.invalidAuthenticationTokenResponse(w, r)
+				return
+			}
+			// At this point, we know that the JWT is all OK and we can trust the data in 
+			// it. We extract the user ID from the claims subject and convert it from a 
+			// string into an int64. TODO: Uncomment the below line
+			//userID, err := strconv.ParseInt(claims.Subject, 10, 64)
+			if err != nil {
+				appPtr.serverErrorResponse(w, r, err)
+				return
+			}
+
+			// Lookup the user record from the database
+			//TODO: Uncomment the below line when I use "user"
+			//user, err := appPtr.dbModel.UserModel.Get(userID)
+            if err != nil {
+				switch {
+				case errors.Is(err, data.ErrRecordNotFound):
+					// TODO: app.invalidAuthenticationTokenResponse(w, r)
+				default:
+					appPtr.serverErrorResponse(w, r, err)
+				}
+				return
+        	}
+
+			// Add the user record to the request context and continue as normal.
+        	//TODO: Implement app.contextSetUser
+			// r = app.contextSetUser(r, user)
+			next.ServeHTTP(w, r)
+		})
 }
 /*********************************************************************************************************************/
 /*

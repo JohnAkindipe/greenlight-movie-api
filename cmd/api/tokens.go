@@ -6,7 +6,10 @@ import (
 	"greenlight-movie-api/internal/data"
 	"greenlight-movie-api/internal/validator"
 	"net/http"
+	"strconv"
 	"time"
+
+	"github.com/pascaldekloe/jwt"
 )
 
 func (appPtr *application) createActivationTokenHandler(w http.ResponseWriter, r *http.Request) {
@@ -155,6 +158,79 @@ func (appPtr *application) createAuthenticationTokenHandler(w http.ResponseWrite
 	//token successfully generated and inserted in db
 	//TODO: Do we send the authentication token in an email? we'll prolly send it in an header
 	err = appPtr.writeJSON(w, http.StatusCreated, envelope{"auth-token": tokenPtr}, nil)
+	if err != nil {
+		appPtr.serverErrorResponse(w, r, err)
+	}
+}
+
+func(appPtr *application) createJWTAuthenticationTokenHandler(w http.ResponseWriter, r *http.Request) {
+	//read the email and password from the request using the readJSON helper.
+	var reqInput struct {
+		Email string `json:"email"`
+		PlaintextPassword string `json:"password"`
+	} 
+
+	err := appPtr.readJSON(w, r, &reqInput)
+	if err != nil {
+		appPtr.badRequestResponse(w, r, err)
+		return
+	}
+
+	//Validate the email and password provided by the user.
+	userVPtr := validator.New()
+	data.ValidateEmail(userVPtr, reqInput.Email)
+	data.ValidatePlaintextPassword(userVPtr, reqInput.PlaintextPassword); 
+	if !userVPtr.Valid() {
+		appPtr.failedValidationResponse(w, r, userVPtr.Errors)
+		return
+	}
+
+	//lookup the user with the email and password in our database
+	userPtr, err := appPtr.dbModel.UserModel.GetUserByEmail(reqInput.Email)
+	if err != nil {
+		switch err { //no user in our db with such email
+			case data.ErrRecordNotFound:
+				appPtr.invalidCredentialsResponse(w, r)
+			default: //problem looking up user in db
+				appPtr.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	//user has been found in our db
+	//compare password hash of provided password with
+	//password hash returned from db
+	matches, err := userPtr.Password.Matches(reqInput.PlaintextPassword)
+	if err != nil { //error comparing the password and hash
+		appPtr.serverErrorResponse(w, r, err)
+		return
+	}
+	if !matches { //the password and hash don't match; err will actually be nil; check code for matches
+		appPtr.invalidCredentialsResponse(w, r)
+		return
+	}
+
+    // Create a JWT claims struct containing the user ID as the subject, with an issued
+    // time of now and validity window of the next 24 hours. We also set the issuer and
+    // audience to a unique identifier for our application.
+	var claims jwt.Claims
+	claims.Subject = strconv.FormatInt(userPtr.ID, 10)
+	claims.Issued = jwt.NewNumericTime(time.Now())
+	claims.NotBefore = jwt.NewNumericTime(time.Now())
+	claims.Expires = jwt.NewNumericTime(time.Now().Add(24 * time.Hour))
+	claims.Issuer = "greenlight.akindipe.john"
+	claims.Audiences = []string{"greenlight.akindipe.john"}
+
+    // Sign the JWT claims using the HMAC-SHA256 algorithm and the secret key from the
+    // application config. This returns a []byte slice containing the JWT as a base64-
+    // encoded string.
+	jwtToken, err := claims.HMACSign(jwt.HS256, []byte(appPtr.config.jwt.secret))
+	if err != nil {
+		appPtr.serverErrorResponse(w, r, err)
+	}
+
+    // Convert the []byte slice to a string and return it in a JSON response.
+	err = appPtr.writeJSON(w, http.StatusCreated, envelope{"auth-token":string(jwtToken)}, nil)
 	if err != nil {
 		appPtr.serverErrorResponse(w, r, err)
 	}

@@ -52,6 +52,9 @@ type config struct {
 		password string
 		sender string
 	}
+	jwt struct {
+		secret string
+	}
 }
 /*********************************************************************************************************************/
 // APPLICATION CONFIGURATION
@@ -182,6 +185,7 @@ func main() {
 	flag.StringVar(&cfg.smtp.username, "smtp-username", os.Getenv("SMTP_USERNAME"), "SMTP username")
 	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("SMTP_PASSWORD"), "SMTP password")
     flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.akindipejohn.net>", "SMTP sender")
+	flag.StringVar(&cfg.jwt.secret, "jwt-secret", os.Getenv("JWT_SECRET"), "jwt secret key")
 	flag.Parse()
 /*********************************************************************************************************************/
 	// DATABASE SETUP

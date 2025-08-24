@@ -70,7 +70,9 @@ endpoint
 	//Authentication Token Generation
 	//Allow a client to exchange their credentials (email address and password) for a stateful authentication token.
 	routerPtr.HandlerFunc(http.MethodPost, "/v1/tokens/authentication", appPtr.createAuthenticationTokenHandler)
-
+	//POST /v1/tokens/jwt-authentication
+	//Generates a JWT Token for Authentication
+	routerPtr.HandlerFunc(http.MethodPost, "/v1/tokens/jwt-authentication", appPtr.createJWTAuthenticationTokenHandler)
 	//return the http handler
 	// recoverPanic -> rateLimit -> appRouter
 	return appPtr.recoverPanic(appPtr.rateLimit(routerPtr))
