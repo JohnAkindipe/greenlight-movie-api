@@ -6,6 +6,10 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+const (
+	MOVIE_READ = "movies:read"
+	MOVIE_WRITE = "movies:write"
+)
 /*********************************************************************************************************************/
 // APPLICATION ROUTER
 // Return the router to use for our application
@@ -29,27 +33,26 @@ endpoint
 
 	//POST /v1/movies
 	//To create a new movie
-	routerPtr.HandlerFunc(http.MethodPost, "/v1/movies", appPtr.createMovieHandler)
-
+	routerPtr.HandlerFunc(http.MethodPost, "/v1/movies", appPtr.requirePermission(MOVIE_WRITE, appPtr.createMovieHandler))
 	//GET /v1/movies/:id
 	//To get info about a specific movie
-	routerPtr.HandlerFunc(http.MethodGet, "/v1/movies/:id", appPtr.showMovieHandler)
+	routerPtr.HandlerFunc(http.MethodGet, "/v1/movies/:id", appPtr.requirePermission(MOVIE_READ, appPtr.showMovieHandler))
 
 	//PATCH /v1/movies/:id
 	//To update a field in a specific movie
-	routerPtr.HandlerFunc(http.MethodPatch, "/v1/movies/:id", appPtr.updateMovieHandler)
+	routerPtr.HandlerFunc(http.MethodPatch, "/v1/movies/:id", appPtr.requirePermission(MOVIE_WRITE, appPtr.updateMovieHandler))
 
 	//PUT /v1/movies/:id
 	//To replace an entire movie with a given id in our database
-	routerPtr.HandlerFunc(http.MethodPut, "/v1/movies/:id", appPtr.replaceMovieHandler)
+	routerPtr.HandlerFunc(http.MethodPut, "/v1/movies/:id", appPtr.requireActivatedUser(appPtr.replaceMovieHandler))
 
 	//DELETE /v1/movies/:id
 	//To delete a specific movie from the db
-	routerPtr.HandlerFunc(http.MethodDelete, "/v1/movies/:id", appPtr.deleteMovieHandler)
+	routerPtr.HandlerFunc(http.MethodDelete, "/v1/movies/:id", appPtr.requirePermission(MOVIE_WRITE, appPtr.deleteMovieHandler))
 
 	//GET /v1/movies
 	//To Get all the movies from the db: Also allows for filtering, sorting, and pagination
-	routerPtr.HandlerFunc(http.MethodGet, "/v1/movies", appPtr.showAllMoviesHandler)
+	routerPtr.HandlerFunc(http.MethodGet, "/v1/movies", appPtr.requirePermission(MOVIE_READ, appPtr.showAllMoviesHandler))
 
 	//USERS ENDPOINT
 	//POST /v1/users
@@ -74,6 +77,6 @@ endpoint
 	//Generates a JWT Token for Authentication
 	routerPtr.HandlerFunc(http.MethodPost, "/v1/tokens/jwt-authentication", appPtr.createJWTAuthenticationTokenHandler)
 	//return the http handler
-	// recoverPanic -> rateLimit -> appRouter
-	return appPtr.recoverPanic(appPtr.rateLimit(routerPtr))
+	// recoverPanic -> rateLimit -> authenticate -> appRouter
+	return appPtr.recoverPanic(appPtr.rateLimit(appPtr.authenticate(routerPtr)))
 }

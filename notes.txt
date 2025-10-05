@@ -65,6 +65,7 @@ All of these are good routers which do permit conflicting routes.
 -------------------------------------------------------------------------------------------------------------------------
 CREATING AND EXECUTING MIGRATIONS (UP AND DOWN FILES)
 migrate create -seq -ext=.sql -dir=./migrations create_users_table //To create a new pair of up and down migration files
+//run above from greenlight-movie-api folder
 migrate -path=./migrations -database=$GREENLIGHT_DB_DSN up //To run an up migration; DB_DSN is in env variables.
 -------------------------------------------------------------------------------------------------------------------------
 ACCOUNT ACTIVATION WORKFLOW

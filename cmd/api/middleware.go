@@ -4,13 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"greenlight-movie-api/internal/data"
+	"greenlight-movie-api/internal/validator"
 	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/pascaldekloe/jwt"
 	"golang.org/x/time/rate"
 )
 
@@ -51,7 +51,7 @@ func (appPtr *application) recoverPanic(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-
+/*********************************************************************************************************************/
 //Read Notes(3) for more information on the limitation of using this pattern
 //for rate-limiting
 func (appPtr *application) rateLimit(next http.Handler) http.Handler {
@@ -151,78 +151,172 @@ func (appPtr *application) rateLimit(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-
+/*********************************************************************************************************************/
 func (appPtr *application) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Parse the JWT and extract the claims. This will return an error if the JWT 
 			// contents doesn't match the signature (i.e. the token has been tampered with)
-			// or the algorithm isn't valid.	
+			// or the algorithm isn't valid.
+			/******************************************************************************/	
+        	// Add the "Vary: Authorization" header to the response. This indicates to any
+        	// caches that the response may vary based on the value of the Authorization
+        	// header in the request.
 			w.Header().Add("Vary", "Authorization")
+	        // Retrieve the value of the Authorization header from the request. This will
+        	// return the empty string "" if there is no such header found.
 			authorizationHeader := r.Header.Get("Authorization")
+	        // If there is no Authorization header found, use the contextSetUser() helper
+        	// that we just made to add the AnonymousUser to the request context. Then we 
+        	// call the next handler in the chain and return without executing any of the
+        	// code below.
 			if authorizationHeader == "" {
-				//TODO: Still missing some code from the jwt appendix rewrite
+				r = appPtr.contextSetUser(r, data.AnonymousUser)
 				next.ServeHTTP(w, r)
 				return
 			}
-
+			// Otherwise, we expect the value of the Authorization header to be in the format
+        	// "Bearer <token>". We try to split this into its constituent parts, and if the
+        	// header isn't in the expected format we return a 401 Unauthorized response
+        	// using the invalidAuthenticationTokenResponse() helper
 			headerParts := strings.Split(authorizationHeader, " ")
 			if len(headerParts) != 2 || headerParts[0] != "Bearer" {
-				//TODO: appPtr.invalidAuthenticationTokenResponse(w, r)
+				appPtr.invalidAuthenticationTokenResponse(w, r)
 				return
 			}
-
+	        // Extract the actual authentication token from the header parts.
 			token := headerParts[1]
-			// Parse the JWT and extract the claims. This will return an error if the JWT 
-			// contents doesn't match the signature (i.e. the token has been tampered with)
-			// or the algorithm isn't valid.			
-			claims, err := jwt.HMACCheck([]byte(token), []byte(appPtr.config.jwt.secret))		
-			if err != nil {
-				//TODO: appPtr.invalidAuthenticationTokenResponse(w, r)
-				return
-			}
-	        //Check if the JWT is still valid at this moment in time.
-			if !claims.Valid(time.Now()) {
-				//TODO: appPtr.invalidAuthenticationTokenResponse(w, r)
-				return
-			}
-            //Check that the issuer is our application.
-			if claims.Issuer != "greenlight.akindipe.john" {
-				//TODO: appPtr.invalidAuthenticationTokenResponse(w, r)
-				return
-			}
-			if !claims.AcceptAudience("greenlight.akindipe.john") {
-				//TODO: appPtr.invalidAuthenticationTokenResponse(w, r)
-				return
-			}
-			// At this point, we know that the JWT is all OK and we can trust the data in 
-			// it. We extract the user ID from the claims subject and convert it from a 
-			// string into an int64. TODO: Uncomment the below line
-			//userID, err := strconv.ParseInt(claims.Subject, 10, 64)
-			if err != nil {
-				appPtr.serverErrorResponse(w, r, err)
-				return
-			}
+			
+		    // Validate the token to make sure it is in a sensible format.
+       		tokenValidator := validator.New()
 
-			// Lookup the user record from the database
-			//TODO: Uncomment the below line when I use "user"
-			//user, err := appPtr.dbModel.UserModel.Get(userID)
-            if err != nil {
-				switch {
-				case errors.Is(err, data.ErrRecordNotFound):
-					// TODO: app.invalidAuthenticationTokenResponse(w, r)
-				default:
-					appPtr.serverErrorResponse(w, r, err)
-				}
+       		// If the token isn't valid, use the invalidAuthenticationTokenResponse() 
+        	// helper to send a response, rather than the failedValidationResponse() helper 
+        	// that we'd normally use.
+			data.ValidateToken(tokenValidator, token)
+			if !tokenValidator.Valid() {
+				appPtr.invalidAuthenticationTokenResponse(w, r)
 				return
-        	}
+			}	
+		    // Retrieve the details of the user associated with the authentication token,
+        	// again calling the invalidAuthenticationTokenResponse() helper if no 
+        	// matching record was found. IMPORTANT: Notice that we are using 
+        	// ScopeAuthentication as the first parameter here.
+			userPtr, err := appPtr.dbModel.UserModel.GetForToken(data.ScopeAuthentication, token)
+        	if err != nil {
+            	switch {
+            		case errors.Is(err, data.ErrRecordNotFound):
+                		appPtr.invalidAuthenticationTokenResponse(w, r)
+            		default:
+                		appPtr.serverErrorResponse(w, r, err)
+            	}
+            	return
+        	}			
+			r = appPtr.contextSetUser(r, userPtr)
+			next.ServeHTTP(w, r)
 
-			// Add the user record to the request context and continue as normal.
-        	//TODO: Implement app.contextSetUser
-			// r = app.contextSetUser(r, user)
+			/******************************************************************************/	
+			/*
+			ALL OF THE BELOW IS FOR THE JWT OPTION OF TOKEN AUTHENTICATION
+			*/
+			// // Parse the JWT and extract the claims. This will return an error if the JWT 
+			// // contents doesn't match the signature (i.e. the token has been tampered with)
+			// // or the algorithm isn't valid.			
+			// claims, err := jwt.HMACCheck([]byte(token), []byte(appPtr.config.jwt.secret))		
+			// if err != nil {
+			// 	//TODO: appPtr.invalidAuthenticationTokenResponse(w, r)
+			// 	return
+			// }
+	        // //Check if the JWT is still valid at this moment in time.
+			// if !claims.Valid(time.Now()) {
+			// 	//TODO: appPtr.invalidAuthenticationTokenResponse(w, r)
+			// 	return
+			// }
+            // //Check that the issuer is our application.
+			// if claims.Issuer != "greenlight.akindipe.john" {
+			// 	//TODO: appPtr.invalidAuthenticationTokenResponse(w, r)
+			// 	return
+			// }
+			// if !claims.AcceptAudience("greenlight.akindipe.john") {
+			// 	//TODO: appPtr.invalidAuthenticationTokenResponse(w, r)
+			// 	return
+			// }
+			// // At this point, we know that the JWT is all OK and we can trust the data in 
+			// // it. We extract the user ID from the claims subject and convert it from a 
+			// // string into an int64. TODO: Uncomment the below line
+			// //userID, err := strconv.ParseInt(claims.Subject, 10, 64)
+			// if err != nil {
+			// 	appPtr.serverErrorResponse(w, r, err)
+			// 	return
+			// }
+
+			// // Lookup the user record from the database
+			// //TODO: Uncomment the below line when I use "user"
+			// //user, err := appPtr.dbModel.UserModel.Get(userID)
+            // if err != nil {
+			// 	switch {
+			// 	case errors.Is(err, data.ErrRecordNotFound):
+			// 		// TODO: app.invalidAuthenticationTokenResponse(w, r)
+			// 	default:
+			// 		appPtr.serverErrorResponse(w, r, err)
+			// 	}
+			// 	return
+        	// }
+
+			// // Add the user record to the request context and continue as normal.
+        	// //TODO: Implement app.contextSetUser
+			// // r = app.contextSetUser(r, user)
+			// next.ServeHTTP(w, r)
+		})
+}
+/*********************************************************************************************************************/
+func (appPtr *application) requireAuthenticatedUser(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			userPtr := appPtr.contextGetUser(r)
+			if userPtr.IsAnonymous() {
+				appPtr.authenticationRequiredResponse(w, r)
+				return
+			}
 			next.ServeHTTP(w, r)
 		})
 }
 /*********************************************************************************************************************/
+func (appPtr *application) requireActivatedUser(next http.HandlerFunc) http.HandlerFunc {
+	fn := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userPtr := appPtr.contextGetUser(r)
+			if !userPtr.Activated {
+				appPtr.activationRequiredResponse(w, r)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	return appPtr.requireAuthenticatedUser(fn)
+}
+/*********************************************************************************************************************/
+/*
+The REQUIRE PERMISSION middleware will take in a specified permission and check if the user currently making
+a request has the specified permission to complete the request.
+It will automatically wrap the requireActivatedUser() middleware which already wraps the
+requireAuthenticatedUser() middleware.
+*/
+func (appPtr *application) requirePermission(permission string, next http.HandlerFunc) http.HandlerFunc {
+	fn := http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			userPtr := appPtr.contextGetUser(r) //we're sure we have a genuine user at this point
+			permissions, err := appPtr.dbModel.PermissionModel.GetAllForUser(userPtr.ID)
+			if err != nil {
+				appPtr.serverErrorResponse(w, r, err)
+				return
+			}
+			if !permissions.Include(permission) {
+				appPtr.notPermittedResponse(w, r)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+
+		return appPtr.requireActivatedUser(fn)
+}
 /*
 1 CLOSE CONNECTION MANUALLY
 Panic would usually unwind the entire goroutine stack, call

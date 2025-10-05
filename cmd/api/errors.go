@@ -147,3 +147,47 @@ func (appPtr *application) invalidCredentialsResponse(w http.ResponseWriter, r *
 	// send an error to try again later
 	appPtr.errorResponse(w, r, http.StatusUnauthorized, "invalid credentials")
 }
+/*********************************************************************************************************************/
+/*
+INVALID AUTHENTICATION TOKEN RESPONSE
+This is for whenever a user submits invalid email or password for whatever
+reason including to get an auth-token or to log in.
+*/
+func (appPtr *application) invalidAuthenticationTokenResponse(w http.ResponseWriter, r *http.Request) {
+	// send an error to try again later
+	w.Header().Set("WWW-Authenticate", "Bearer")
+	appPtr.errorResponse(w, r, http.StatusUnauthorized, "invalid or missing authentication token")
+}
+/*********************************************************************************************************************/
+/*
+AUTHENTICATION REQUIRED RESPONSE
+This is for when an anonymous (unactivated and unauthenticated) user tries to access an endpoint which requires
+activation and authentication - These explanations need refining
+*/
+func (app *application) authenticationRequiredResponse(w http.ResponseWriter, r *http.Request) {
+    message := "you must be authenticated to access this resource"
+    app.errorResponse(w, r, http.StatusUnauthorized, message)
+}
+/*********************************************************************************************************************/
+/*
+ACTIVATION REQUIRED RESPONSE
+This is for when an activated but unauthenticated user tries to access an endpoint which requires
+authentication - These explanations need refining
+*/
+func (app *application) activationRequiredResponse(w http.ResponseWriter, r *http.Request) {
+    message := "your user account must be activated to access this resource"
+    app.errorResponse(w, r, http.StatusForbidden, message)
+}
+/*********************************************************************************************************************/
+/*
+NOT PERMITTED RESPONSE
+This is for when a user without the necessary permission (such as "movie:read" or "movie:write")
+tries to perform this action on an endpoint that requires the necessary permission
+*/
+func (app *application) notPermittedResponse(w http.ResponseWriter, r *http.Request) {
+    message := `
+		You are not permitted to perform this action.
+		Activate your account for full privilege
+	`
+    app.errorResponse(w, r, http.StatusForbidden, message)
+}

@@ -88,7 +88,13 @@ func (appPtr *application) registerUserHandler(w http.ResponseWriter, r *http.Re
 		appPtr.serverErrorResponse(w, r, err)
 		return
 	}
-	
+
+	//Grant "movie:read" permission
+	err = appPtr.dbModel.PermissionModel.AddForUser(user.ID, "movies:read")
+	if err != nil {
+		appPtr.serverErrorResponse(w, r, err)
+		return
+	}
 	//Launch a background goroutine to send a welcome email to the user
 	//After they have successfully been registered. We only want this
 	//email to be sent if they were successfully reigstered.
