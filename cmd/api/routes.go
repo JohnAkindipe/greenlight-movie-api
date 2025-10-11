@@ -78,5 +78,12 @@ endpoint
 	routerPtr.HandlerFunc(http.MethodPost, "/v1/tokens/jwt-authentication", appPtr.createJWTAuthenticationTokenHandler)
 	//return the http handler
 	// recoverPanic -> rateLimit -> authenticate -> appRouter
-	return appPtr.recoverPanic(appPtr.rateLimit(appPtr.authenticate(routerPtr)))
+	return appPtr.recoverPanic(appPtr.enableCORS(appPtr.rateLimit(appPtr.authenticate(routerPtr))))
 }
+
+/*
+1. CORS MIDDLEWARE POSITIONING
+If we positioned it after our rate limiter, for example, any cross-origin requests that exceed the rate limit would not 
+have the Access-Control-Allow-Origin header set. This means that they would be blocked by the client’s web browser due 
+to the same-origin policy, rather than the client receiving a 429 Too Many Requests response like they should.
+*/

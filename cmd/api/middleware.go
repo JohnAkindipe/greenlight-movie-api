@@ -7,6 +7,7 @@ import (
 	"greenlight-movie-api/internal/validator"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -317,6 +318,27 @@ func (appPtr *application) requirePermission(permission string, next http.Handle
 
 		return appPtr.requireActivatedUser(fn)
 }
+/*********************************************************************************************************************/
+/*
+The ENABLE CORS middleware will tell browswers which origins are allowed to read responses from our server.
+Currently, all origins are allowed to read responses from our server.
+This header is only enforced on browsers and will not affect requests from other sources outside a browser
+such as the command line.
+*/
+func (appPtr *application) enableCORS(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		
+		if slices.Contains(appPtr.config.cors.trustedOrigins, origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
+		//allow request proceed as nrmal if no match found, thus
+		//the request will default to only same-site origin allowed
+		//for CORS
+		w.Header().Add("Vary", "Origin") //See notes(4)
+        next.ServeHTTP(w, r)
+    })
+}
 /*
 1 CLOSE CONNECTION MANUALLY
 Panic would usually unwind the entire goroutine stack, call
@@ -350,4 +372,10 @@ If you’re using HAProxy or Nginx as a load balancer or reverse proxy, both of 
 functionality for rate limiting that it would probably be sensible to use. Alternatively, you 
 could use a fast database like Redis to maintain a request count for clients, running on a server 
 which all your application servers can communicate with.
+
+4 VARY RESPONSE HEADER
+If your code makes a decision about what to return based on the content of a request header, you 
+should include that header name in your Vary response header — even if the request didn’t include 
+that header. This is important for CACHES and prevents subtle bugs like as described below
+https://textslashplain.com/2018/08/02/cors-and-vary/s
 */

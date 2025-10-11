@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,7 +20,12 @@ import (
 /*********************************************************************************************************************/
 // VERSION CONSTANT
 // hard coded version constant, we'll automatically determine this later
-const version = "1.0.0"
+const (
+	version = "1.0.0"
+	CORS_USAGE_FLAG = `trusted cors origins, origins should be separated 
+by spaces e.g https://www.example.com https://staging.example.com`
+)
+	
 /*********************************************************************************************************************/
 // SETUP CONFIGURATION
 // Define a config struct to hold all the configuration settings for our application.
@@ -54,6 +60,9 @@ type config struct {
 	}
 	jwt struct {
 		secret string
+	}
+	cors struct {
+		trustedOrigins []string	
 	}
 }
 /*********************************************************************************************************************/
@@ -166,6 +175,14 @@ func main() {
 	// Declare an instance of the config struct.
 	var cfg config
 /*********************************************************************************************************************/
+	//function to verify cors flags passed in command line, they should
+	//be separated by spaces e.g. "https://www.example.com https://staging.example.com"
+	verifyCorsFlag := func (fieldValue string) error {
+		cfg.cors.trustedOrigins = strings.Fields(fieldValue)
+		return nil
+	}
+	
+/*********************************************************************************************************************/
 	// COMMAND LINE FLAGS
 	// Use flags to get the value for variables we'll use in our application from command-line flags.
 	// The IntVar and StringVar will automatically store the result of the flag in the destination
@@ -186,6 +203,8 @@ func main() {
 	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("SMTP_PASSWORD"), "SMTP password")
     flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.akindipejohn.net>", "SMTP sender")
 	flag.StringVar(&cfg.jwt.secret, "jwt-secret", os.Getenv("JWT_SECRET"), "jwt secret key")
+	flag.StringVar(&cfg.jwt.secret, "jwt-secret", os.Getenv("JWT_SECRET"), "jwt secret key")
+	flag.Func("cors-trusted-origins", CORS_USAGE_FLAG, verifyCorsFlag)
 	flag.Parse()
 /*********************************************************************************************************************/
 	// DATABASE SETUP
