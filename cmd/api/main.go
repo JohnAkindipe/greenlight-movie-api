@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"database/sql"
+	"expvar"
 	"flag"
 	"greenlight-movie-api/internal/data"
 	"greenlight-movie-api/internal/mailer"
 	"log/slog"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -203,7 +205,6 @@ func main() {
 	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("SMTP_PASSWORD"), "SMTP password")
     flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.akindipejohn.net>", "SMTP sender")
 	flag.StringVar(&cfg.jwt.secret, "jwt-secret", os.Getenv("JWT_SECRET"), "jwt secret key")
-	flag.StringVar(&cfg.jwt.secret, "jwt-secret", os.Getenv("JWT_SECRET"), "jwt secret key")
 	flag.Func("cors-trusted-origins", CORS_USAGE_FLAG, verifyCorsFlag)
 	flag.Parse()
 /*********************************************************************************************************************/
@@ -233,6 +234,23 @@ func main() {
 		cfg.smtp.password, 
 		cfg.smtp.sender,
 	)
+/*********************************************************************************************************************/
+	//SET UP CUSTOM METRIC INFO
+	//Publish the current API version
+	expvar.NewString("version").Set(version)
+
+	// Publish the number of active goroutines.
+	expvar.Publish("goroutines", expvar.Func(func() any {
+		return runtime.NumGoroutine()
+	}))
+	// Publish the database connection pool statistics.
+	expvar.Publish("database", expvar.Func(func() any {
+		return dbPtr.Stats()
+	}))
+	// Publish the current Unix timestamp.
+	expvar.Publish("timestamp", expvar.Func(func() any {
+		return time.Now().Unix() //we convert the time to unix so we can get it in int64 which is JSON-compatible
+	}))
 /*********************************************************************************************************************/
 	// APP STRUCT SETUP
 	// Initialize the application with the config and logger we've set up

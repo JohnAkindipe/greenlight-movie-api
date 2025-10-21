@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"expvar"
 	"fmt"
 	"greenlight-movie-api/internal/data"
 	"greenlight-movie-api/internal/validator"
@@ -327,17 +328,71 @@ such as the command line.
 */
 func (appPtr *application) enableCORS(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Vary", "Origin") //See notes(4)
+		w.Header().Add("Vary", "Access-Control-Request-Method")
 		origin := r.Header.Get("Origin")
-		
+
 		if slices.Contains(appPtr.config.cors.trustedOrigins, origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 		}
 		//allow request proceed as nrmal if no match found, thus
 		//the request will default to only same-site origin allowed
 		//for CORS
-		w.Header().Add("Vary", "Origin") //See notes(4)
+		
+		//Identify request as pre-flight See notes(5)
+		if r.Method == http.MethodOptions {
+			if origin != "" {
+				if r.Header.Get("Access-Control-Request-Method") != "" {
+					// This is a pre-flight request
+                    w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, PUT, PATCH, DELETE")
+                    w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+			}
+		}
+		//Not pre-flight request
         next.ServeHTTP(w, r)
     })
+}
+/*********************************************************************************************************************/
+/*
+The METRICS middleware will generate per-request metrics for our application.
+*/
+func (appPtr *application) metrics(next http.Handler) http.Handler {
+	// The below variables will be created only once: when the middleware chain is built
+	// Refer Notes(6)
+	var (
+		totalRequestsReceived = expvar.NewInt("total-requests-received")
+		//by the time we send a response, this response won't be included in this variable
+		//it will be incremented in a later fashion i.e. If we receive 2 responses, it will
+		//show that we have received only 1. Likewise the totalProcessingTime. This is
+		//happening because we are incrementing them after the response has been sent.
+		totalResponsesSent = expvar.NewInt("total_responses_sent")
+		totalProcessingTimeMicroseconds = expvar.NewInt("total_processing_time_μs")
+	)
+
+	//This will run on per-request basis. The variables above are safe for concurrent use
+	//and can be incremented and decremented by different goroutines without data races.
+	//This means, they must have a mutex-like implementation internally
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		totalRequestsReceived.Add(1)
+		//I use a defer here because I want the processingTime to increase
+		//whether or not the request completed successfully or we returned
+		//an error
+		defer func() {
+			processingTime := time.Since(start).Microseconds()
+			totalProcessingTimeMicroseconds.Add(processingTime)
+		}()
+
+		next.ServeHTTP(w, r)
+		//we'll only reach this point if we send a response
+		//TODO: Move this into the defer
+		totalResponsesSent.Add(1)
+	})
 }
 /*
 1 CLOSE CONNECTION MANUALLY
@@ -378,4 +433,45 @@ If your code makes a decision about what to return based on the content of a req
 should include that header name in your Vary response header — even if the request didn’t include 
 that header. This is important for CACHES and prevents subtle bugs like as described below
 https://textslashplain.com/2018/08/02/cors-and-vary/s
+
+5. IDENTIFYING AND RESPONDING TO PREFLIGHT REQUESTS
+A browser will send a preflight request when it determines that the real request it wants to make
+is not a simple CORS request.
+Preflight requests always have three components: the HTTP method OPTIONS, an Origin header, and an 
+Access-Control-Request-Method header. If any one of these pieces is missing, we know that it is not 
+a preflight request.
+
+Once we identify that it is a preflight request, we need to send a 200 OK response with some special 
+headers to let the browser know whether or not it’s OK for the real request to proceed. These are:
+- An Access-Control-Allow-Origin response header, which reflects the value of the preflight request’s 
+Origin header (just like in the previous chapter).
+- An Access-Control-Allow-Methods header listing the HTTP methods that can be used in real cross-origin 
+requests to the URL.
+- An Access-Control-Allow-Headers header listing the request headers that can be included in real 
+cross-origin requests to the URL.
+
+When responding to a preflight request it’s not necessary to include the CORS-safe methods HEAD, GET or 
+POST in the Access-Control-Allow-Methods header. Likewise, it’s not necessary to include forbidden or 
+CORS-safe headers in Access-Control-Allow-Headers.
+
+6. MIDDLEWARE UP THE CALL STACK
+When we call the next.ServeHTTP() inside the middleware, it will call the next middleware, when that
+middleware returns, we increase the responses sent variable (at this point we know we have successfully
+sent a response, hence why we can't use a defer - a defer would increment the response sent, whether or
+not we send a response. The author doesn't do this, but I believe we should increase the 
+totalProcessingTime in a defer because, we want to increase it whether or not we were able to send a 
+response successfully or not). Another clever thing we do is to initialize the variables before we return
+the main body of the middleware; this is important because go serves every request in a new goroutine.
+If we initialize the variable inside the main middleware body, it will initialize a different variable for
+every request, but by doing it as we have currently done (outside the returned middleware), the variables 
+will be global for the application and every request (in another goroutine) will be referencing the same
+global variables and making changes to the variables.
+
+OTHER USEFUL METRICS:
+- The number of ‘active’ in-flight requests:
+total_requests_received - total_responses_sent
+- The average number of requests received per second (between calls A and B to the GET /debug/vars endpoint):
+(total_requests_received_B - total_requests_received_A) / (timestamp_B - timestamp_A)
+- The average processing time per request (between calls A and B to the GET /debug/vars endpoint):
+(total_processing_time_μs_B - total_processing_time_μs_A) / (total_requests_received_B - total_requests_received_A)
 */

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"expvar"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
@@ -30,6 +31,10 @@ endpoint
 */
 	// GET "/v1/healthcheck"
 	routerPtr.HandlerFunc(http.MethodGet, "/v1/healthcheck", appPtr.healthcheckHandler)
+
+	// GET "/debug/vars" 
+	// To Display Application Metrics
+	routerPtr.Handler(http.MethodGet, "/debug/vars", expvar.Handler())
 
 	//POST /v1/movies
 	//To create a new movie
@@ -77,8 +82,8 @@ endpoint
 	//Generates a JWT Token for Authentication
 	routerPtr.HandlerFunc(http.MethodPost, "/v1/tokens/jwt-authentication", appPtr.createJWTAuthenticationTokenHandler)
 	//return the http handler
-	// recoverPanic -> rateLimit -> authenticate -> appRouter
-	return appPtr.recoverPanic(appPtr.enableCORS(appPtr.rateLimit(appPtr.authenticate(routerPtr))))
+	// metrics -> recoverPanic -> rateLimit -> authenticate -> appRouter
+	return appPtr.metrics(appPtr.recoverPanic(appPtr.enableCORS(appPtr.rateLimit(appPtr.authenticate(routerPtr)))))
 }
 
 /*
