@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,56 @@ import (
 )
 
 type IPAddr string
+
+type metricsResponseWriter struct {
+		wrapped http.ResponseWriter
+		statusCode int
+		headerWritten bool
+}
+
+/*********************************************************************************************************************/
+/*
+METRICS SPECIFIC FUNCTIONS
+*/
+func newMetricsResponseWriter(w http.ResponseWriter) *metricsResponseWriter {
+		return &metricsResponseWriter{
+			wrapped: w,
+			statusCode: http.StatusOK,
+			headerWritten: false,
+		}
+}
+
+// The Header() method is a simple 'pass through' to the Header() method of the
+// wrapped http.ResponseWriter.
+func (mw *metricsResponseWriter) Header() http.Header {
+	return mw.wrapped.Header()
+}
+
+// Likewise the Write() method does a 'pass through' to the Write() method of the
+// wrapped http.ResponseWriter. Calling this will automatically write any 
+// response headers, so we set the headerWritten field to true.
+func (mw *metricsResponseWriter) Write(b []byte) (int, error) {
+	mw.headerWritten = true
+	return mw.wrapped.Write(b)
+}
+
+// Again, the WriteHeader() method does a 'pass through' to the WriteHeader()
+// method of the wrapped http.ResponseWriter. But after this returns,
+// we also record the response status code (if it hasn't already been recorded)
+// and set the headerWritten field to true to indicate that the HTTP response  
+// headers have now been written.
+func (mw *metricsResponseWriter) WriteHeader(statusCode int) {
+	mw.wrapped.WriteHeader(statusCode)
+	if !mw.headerWritten {
+		mw.statusCode = statusCode
+    	mw.headerWritten = true
+	}
+}
+
+func (mw *metricsResponseWriter) Unwrap() http.ResponseWriter {
+	return mw.wrapped
+}
+
 
 /*********************************************************************************************************************/
 /*
@@ -371,6 +422,9 @@ func (appPtr *application) metrics(next http.Handler) http.Handler {
 		//happening because we are incrementing them after the response has been sent.
 		totalResponsesSent = expvar.NewInt("total_responses_sent")
 		totalProcessingTimeMicroseconds = expvar.NewInt("total_processing_time_μs")
+		// Declare a new expvar map to hold the count of responses for each HTTP status
+        // code.
+        totalResponsesSentByStatus = expvar.NewMap("total_responses_sent_by_status")
 	)
 
 	//This will run on per-request basis. The variables above are safe for concurrent use
@@ -378,20 +432,21 @@ func (appPtr *application) metrics(next http.Handler) http.Handler {
 	//This means, they must have a mutex-like implementation internally
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-
 		totalRequestsReceived.Add(1)
+		
+		mwPtr := newMetricsResponseWriter(w)
 		//I use a defer here because I want the processingTime to increase
 		//whether or not the request completed successfully or we returned
-		//an error
+		//an error such as a panic.
 		defer func() {
 			processingTime := time.Since(start).Microseconds()
 			totalProcessingTimeMicroseconds.Add(processingTime)
+			
+			totalResponsesSentByStatus.Add(strconv.Itoa(mwPtr.statusCode), 1)
+			totalResponsesSent.Add(1)
 		}()
 
-		next.ServeHTTP(w, r)
-		//we'll only reach this point if we send a response
-		//TODO: Move this into the defer
-		totalResponsesSent.Add(1)
+		next.ServeHTTP(mwPtr, r)
 	})
 }
 /*
