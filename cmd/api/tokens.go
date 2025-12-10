@@ -17,7 +17,7 @@ func (appPtr *application) createActivationTokenHandler(w http.ResponseWriter, r
 	//we expect for a registered user looking
 	//to get the activation token
 	var reqInput struct {
-		Email    string `json:"email"`
+		Email string `json:"email"`
 	}
 
 	//decode the json data from the body into the user struct
@@ -27,7 +27,7 @@ func (appPtr *application) createActivationTokenHandler(w http.ResponseWriter, r
 		return
 	}
 
-	//Validate the email 
+	//Validate the email
 	emailValidatorPtr := validator.New()
 	data.ValidateEmail(emailValidatorPtr, reqInput.Email)
 
@@ -74,9 +74,9 @@ func (appPtr *application) createActivationTokenHandler(w http.ResponseWriter, r
 			"userID":          userPtr.ID,
 			"activationToken": tokenPtr.Plaintext,
 		}
-        // Since email addresses MAY be case sensitive, notice that we are sending this 
-        // email using the address stored in our database for the user --- not to the 
-        // reqInput.Email address provided by the client in this request.
+		// Since email addresses MAY be case sensitive, notice that we are sending this
+		// email using the address stored in our database for the user --- not to the
+		// reqInput.Email address provided by the client in this request.
 		err := appPtr.mailer.Send(
 			userPtr.Email,
 			"activation_token.tmpl",
@@ -87,7 +87,7 @@ func (appPtr *application) createActivationTokenHandler(w http.ResponseWriter, r
 			//See notes(3) below for why we log instead
 		}
 	})
-	//then an html reponse to the user     
+	//then an html reponse to the user
 	//Send a 202 Accepted response and confirmation message to the client.
 	env := envelope{
 		"message": "an email will be sent to you with activation instructions",
@@ -98,15 +98,15 @@ func (appPtr *application) createActivationTokenHandler(w http.ResponseWriter, r
 	}
 }
 
-//POST /v1/tokens/authentication
-//Authentication Token Generation
-//Allow a client to exchange their credentials (email address and password) for a stateful authentication token.
+// POST /v1/tokens/authentication
+// Authentication Token Generation
+// Allow a client to exchange their credentials (email address and password) for a stateful authentication token.
 func (appPtr *application) createAuthenticationTokenHandler(w http.ResponseWriter, r *http.Request) {
 	//read the email and password from the request using the readJSON helper.
 	var reqInput struct {
-		Email string `json:"email"`
+		Email             string `json:"email"`
 		PlaintextPassword string `json:"password"`
-	} 
+	}
 
 	err := appPtr.readJSON(w, r, &reqInput)
 	if err != nil {
@@ -117,7 +117,7 @@ func (appPtr *application) createAuthenticationTokenHandler(w http.ResponseWrite
 	//Validate the email and password provided by the user.
 	userVPtr := validator.New()
 	data.ValidateEmail(userVPtr, reqInput.Email)
-	data.ValidatePlaintextPassword(userVPtr, reqInput.PlaintextPassword); 
+	data.ValidatePlaintextPassword(userVPtr, reqInput.PlaintextPassword)
 	if !userVPtr.Valid() {
 		appPtr.failedValidationResponse(w, r, userVPtr.Errors)
 		return
@@ -127,10 +127,10 @@ func (appPtr *application) createAuthenticationTokenHandler(w http.ResponseWrite
 	userPtr, err := appPtr.dbModel.UserModel.GetUserByEmail(reqInput.Email)
 	if err != nil {
 		switch err { //no user in our db with such email
-			case data.ErrRecordNotFound:
-				appPtr.invalidCredentialsResponse(w, r)
-			default: //problem looking up user in db
-				appPtr.serverErrorResponse(w, r, err)
+		case data.ErrRecordNotFound:
+			appPtr.invalidCredentialsResponse(w, r)
+		default: //problem looking up user in db
+			appPtr.serverErrorResponse(w, r, err)
 		}
 		return
 	}
@@ -149,7 +149,7 @@ func (appPtr *application) createAuthenticationTokenHandler(w http.ResponseWrite
 	}
 	//the password and hash match
 	//Create a new authentication token and store in the tokens db
-	tokenPtr, err := appPtr.dbModel.TokenModel.New(data.ScopeAuthentication, userPtr.ID, 24 * time.Hour)
+	tokenPtr, err := appPtr.dbModel.TokenModel.New(data.ScopeAuthentication, userPtr.ID, 24*time.Hour)
 	if err != nil { //error generating token or inserting in db
 		appPtr.serverErrorResponse(w, r, err)
 		return
@@ -163,12 +163,12 @@ func (appPtr *application) createAuthenticationTokenHandler(w http.ResponseWrite
 	}
 }
 
-func(appPtr *application) createJWTAuthenticationTokenHandler(w http.ResponseWriter, r *http.Request) {
+func (appPtr *application) createJWTAuthenticationTokenHandler(w http.ResponseWriter, r *http.Request) {
 	//read the email and password from the request using the readJSON helper.
 	var reqInput struct {
-		Email string `json:"email"`
+		Email             string `json:"email"`
 		PlaintextPassword string `json:"password"`
-	} 
+	}
 
 	err := appPtr.readJSON(w, r, &reqInput)
 	if err != nil {
@@ -179,7 +179,7 @@ func(appPtr *application) createJWTAuthenticationTokenHandler(w http.ResponseWri
 	//Validate the email and password provided by the user.
 	userVPtr := validator.New()
 	data.ValidateEmail(userVPtr, reqInput.Email)
-	data.ValidatePlaintextPassword(userVPtr, reqInput.PlaintextPassword); 
+	data.ValidatePlaintextPassword(userVPtr, reqInput.PlaintextPassword)
 	if !userVPtr.Valid() {
 		appPtr.failedValidationResponse(w, r, userVPtr.Errors)
 		return
@@ -189,10 +189,10 @@ func(appPtr *application) createJWTAuthenticationTokenHandler(w http.ResponseWri
 	userPtr, err := appPtr.dbModel.UserModel.GetUserByEmail(reqInput.Email)
 	if err != nil {
 		switch err { //no user in our db with such email
-			case data.ErrRecordNotFound:
-				appPtr.invalidCredentialsResponse(w, r)
-			default: //problem looking up user in db
-				appPtr.serverErrorResponse(w, r, err)
+		case data.ErrRecordNotFound:
+			appPtr.invalidCredentialsResponse(w, r)
+		default: //problem looking up user in db
+			appPtr.serverErrorResponse(w, r, err)
 		}
 		return
 	}
@@ -210,9 +210,9 @@ func(appPtr *application) createJWTAuthenticationTokenHandler(w http.ResponseWri
 		return
 	}
 
-    // Create a JWT claims struct containing the user ID as the subject, with an issued
-    // time of now and validity window of the next 24 hours. We also set the issuer and
-    // audience to a unique identifier for our application.
+	// Create a JWT claims struct containing the user ID as the subject, with an issued
+	// time of now and validity window of the next 24 hours. We also set the issuer and
+	// audience to a unique identifier for our application.
 	var claims jwt.Claims
 	claims.Subject = strconv.FormatInt(userPtr.ID, 10)
 	claims.Issued = jwt.NewNumericTime(time.Now())
@@ -221,25 +221,26 @@ func(appPtr *application) createJWTAuthenticationTokenHandler(w http.ResponseWri
 	claims.Issuer = "greenlight.akindipe.john"
 	claims.Audiences = []string{"greenlight.akindipe.john"}
 
-    // Sign the JWT claims using the HMAC-SHA256 algorithm and the secret key from the
-    // application config. This returns a []byte slice containing the JWT as a base64-
-    // encoded string.
+	// Sign the JWT claims using the HMAC-SHA256 algorithm and the secret key from the
+	// application config. This returns a []byte slice containing the JWT as a base64-
+	// encoded string.
 	jwtToken, err := claims.HMACSign(jwt.HS256, []byte(appPtr.config.jwt.secret))
 	if err != nil {
 		appPtr.serverErrorResponse(w, r, err)
 	}
 
-    // Convert the []byte slice to a string and return it in a JSON response.
-	err = appPtr.writeJSON(w, http.StatusCreated, envelope{"auth-token":string(jwtToken)}, nil)
+	// Convert the []byte slice to a string and return it in a JSON response.
+	err = appPtr.writeJSON(w, http.StatusCreated, envelope{"auth-token": string(jwtToken)}, nil)
 	if err != nil {
 		appPtr.serverErrorResponse(w, r, err)
 	}
 }
+
 /*********************************************************************************************************************/
 /*
 NOTES
 1 WHY DELETE_ALL_FOR_USER method on TokenModel
-If you implement an endpoint like this, it’s important to note that this would allow users to potentially have multiple 
-valid activation tokens ‘on the go’ at any one time. That’s fine — but you just need to make sure that you delete all 
+If you implement an endpoint like this, it’s important to note that this would allow users to potentially have multiple
+valid activation tokens ‘on the go’ at any one time. That’s fine — but you just need to make sure that you delete all
 the activation tokens for a user once they’ve successfully activated (not just the token that they used).
 */

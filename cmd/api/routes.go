@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	MOVIE_READ = "movies:read"
+	MOVIE_READ  = "movies:read"
 	MOVIE_WRITE = "movies:write"
 )
+
 /*********************************************************************************************************************/
 // APPLICATION ROUTER
 // Return the router to use for our application
@@ -18,21 +19,21 @@ func (appPtr *application) routes() http.Handler {
 	// routerptr is an object that satisfies the http.Handler interface by defining a servehttp method
 	routerPtr := httprouter.New()
 
-	// register the notFoundResponse helper as the default handler for 
+	// register the notFoundResponse helper as the default handler for
 	// requests that could not be matched to any path
 	routerPtr.NotFound = http.HandlerFunc(appPtr.notFoundHandler)
-	// register the methodNotAllowedResponse helper as the default handler for 
+	// register the methodNotAllowedResponse helper as the default handler for
 	// requests to a path with methods that the path doesn't allow (e.g a POST
 	// request to "healthcheck")
 	routerPtr.MethodNotAllowed = http.HandlerFunc(appPtr.methodNotAllowedHandler)
-/* 
-the handlerfunc will register the function to call for a specific type of request to a particular
-endpoint
-*/
+	/*
+	   the handlerfunc will register the function to call for a specific type of request to a particular
+	   endpoint
+	*/
 	// GET "/v1/healthcheck"
 	routerPtr.HandlerFunc(http.MethodGet, "/v1/healthcheck", appPtr.healthcheckHandler)
 
-	// GET "/debug/vars" 
+	// GET "/debug/vars"
 	// To Display Application Metrics
 	routerPtr.Handler(http.MethodGet, "/debug/vars", expvar.Handler())
 
@@ -71,7 +72,7 @@ endpoint
 	//TOKENS
 	//STANDALONE ACTIVATION ENDPOINT
 	//POST /v1/tokens/activation
-	//Specifically to generate a new activation token such as if a user doesn't initially activate their account 
+	//Specifically to generate a new activation token such as if a user doesn't initially activate their account
 	//before token expiry or they never receive the welcome email containing the token for some reason.
 	routerPtr.HandlerFunc(http.MethodPost, "/v1/tokens/activation", appPtr.createActivationTokenHandler)
 	//POST /v1/tokens/authentication
@@ -88,7 +89,7 @@ endpoint
 
 /*
 1. CORS MIDDLEWARE POSITIONING
-If we positioned it after our rate limiter, for example, any cross-origin requests that exceed the rate limit would not 
-have the Access-Control-Allow-Origin header set. This means that they would be blocked by the client’s web browser due 
+If we positioned it after our rate limiter, for example, any cross-origin requests that exceed the rate limit would not
+have the Access-Control-Allow-Origin header set. This means that they would be blocked by the client’s web browser due
 to the same-origin policy, rather than the client receiving a 429 Too Many Requests response like they should.
 */

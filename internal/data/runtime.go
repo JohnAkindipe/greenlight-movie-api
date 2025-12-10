@@ -15,10 +15,12 @@ Define a custom type for the Runtime, so that we can define a custom MarshalJSON
 when our program tries to marshal any data represented as the runtime type into JSON.
 */
 type Runtime int32
+
 /*********************************************************************************************************************/
 // Define an error that our UnmarshalJSON() method can return if we're unable to parse
 // or convert the JSON string successfully.
 var ErrInvalidRuntimeFormat = errors.New(`runtime should be in the format: "<runtime> mins", where runtime is a valid int`)
+
 /*********************************************************************************************************************/
 /*CUSTOM MARSHALJSON FUNC*/
 func (r Runtime) MarshalJSON() ([]byte, error) {
@@ -44,7 +46,7 @@ func (rPtr *Runtime) UnmarshalJSON(jsonForm []byte) error {
 	if err := json.Unmarshal(jsonForm, &stringForm); err != nil {
 		return ErrInvalidRuntimeFormat
 	}
-	
+
 	//check if stringform has suffix " mins", return an error if it doesn't
 	if !strings.HasSuffix(stringForm, " mins") {
 		return ErrInvalidRuntimeFormat
@@ -53,9 +55,9 @@ func (rPtr *Runtime) UnmarshalJSON(jsonForm []byte) error {
 	//trim the " mins" suffix from stringform, it should now have simply a number
 	//in string form i.e from "56 mins" to "56"
 	stringForm = strings.TrimSuffix(stringForm, " mins")
-	
+
 	//Convert string to valid int e.g. "56" to 56, return an error if we can't convert
-	//the string representation to a valid int. It means the client did not send a valid 
+	//the string representation to a valid int. It means the client did not send a valid
 	//integer for the runtime value
 	intForm, err := strconv.ParseInt(stringForm, 10, 32)
 	if err != nil {

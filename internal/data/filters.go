@@ -7,18 +7,18 @@ import (
 )
 
 type Filters struct {
-	Page     int
-	PageSize int
-	Sort     string
+	Page         int
+	PageSize     int
+	Sort         string
 	SortSafeList []string
 }
 
 type PageMetadata struct {
-    CurrentPage  int    `json:"current_page,omitempty"`
-    PageSize     int    `json:"page_size,omitempty"`
-    FirstPage    int    `json:"first_page,omitempty"`
-    LastPage     int    `json:"last_page,omitempty"`
-    TotalRecords int    `json:"total_records,omitempty"`
+	CurrentPage  int `json:"current_page,omitempty"`
+	PageSize     int `json:"page_size,omitempty"`
+	FirstPage    int `json:"first_page,omitempty"`
+	LastPage     int `json:"last_page,omitempty"`
+	TotalRecords int `json:"total_records,omitempty"`
 }
 
 func CalculatePageMetadata(totalRecords, pageSize, currentPage int) PageMetadata {
@@ -27,10 +27,10 @@ func CalculatePageMetadata(totalRecords, pageSize, currentPage int) PageMetadata
 	}
 
 	return PageMetadata{
-		CurrentPage: currentPage,
-		PageSize: pageSize,
-		FirstPage: 1,
-		LastPage: int(math.Ceil(float64(totalRecords)/float64(pageSize))),
+		CurrentPage:  currentPage,
+		PageSize:     pageSize,
+		FirstPage:    1,
+		LastPage:     int(math.Ceil(float64(totalRecords) / float64(pageSize))),
 		TotalRecords: totalRecords,
 	}
 }
@@ -48,7 +48,7 @@ func ValidateFilters(filterValidatorPtr *validator.Validator, filters Filters) {
 
 	//page size (no. of items on a page) can't be >100 or <0, default: 20
 	filterValidatorPtr.Check(
-		filters.PageSize > 0 && filters.PageSize <101,
+		filters.PageSize > 0 && filters.PageSize < 101,
 		"page_size",
 		"must be from (including) 1 upto (including) 100",
 	)

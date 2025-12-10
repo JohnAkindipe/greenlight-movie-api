@@ -14,12 +14,13 @@ func (appPtr *application) logError(r *http.Request, err error) {
 	//Get method and uri from request
 	var (
 		method = r.Method
-		uri = r.URL.RequestURI()
+		uri    = r.URL.RequestURI()
 	)
 
 	//Log the error using our structured logger to indicate what went wrong
 	appPtr.logger.Error(err.Error(), "method", method, "uri", uri)
 }
+
 /*********************************************************************************************************************/
 /*
 SEND ERROR IN JSON FORMAT USING WRITE JSON HELPER
@@ -39,12 +40,13 @@ func (appPtr *application) errorResponse(w http.ResponseWriter, r *http.Request,
 
 	// log errors, if writeJSON unable to send the error to client
 	// in JSON format and fall back to sending the client an empty response with a
-    // 500 Internal Server Error status code.
+	// 500 Internal Server Error status code.
 	if err != nil {
 		appPtr.logError(r, err)
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
+
 /*********************************************************************************************************************/
 // SERVER ERROR RESPONSE
 /*
@@ -53,12 +55,13 @@ unexpected problem at runtime. It logs the detailed error message, then uses the
 errorResponse() helper to send a 500 Internal Server Error status code and JSON
 response (containing a generic error message) to the client.
 */
-func (appPtr *application) serverErrorResponse (w http.ResponseWriter, r *http.Request, err error) {
+func (appPtr *application) serverErrorResponse(w http.ResponseWriter, r *http.Request, err error) {
 
 	appPtr.logError(r, err)
 
 	appPtr.errorResponse(w, r, http.StatusInternalServerError, "we encountered a problem in our server")
 }
+
 /*********************************************************************************************************************/
 /*
 NOT FOUND ERROR RESPONSE
@@ -66,12 +69,13 @@ Called notFoundResponse by author
 The notFoundResponse() method will be used to send a 404 Not Found status code and
 JSON response to the client. Notice that it implements the http.Handlerfunc type
 This is intentional, because, we will pass this to the router object created with httprouter.new
-in our app.router method. 
+in our app.router method.
 */
 func (appPtr *application) notFoundHandler(w http.ResponseWriter, r *http.Request) {
 	// send an error explaining we could not find the requested resource
 	appPtr.errorResponse(w, r, http.StatusNotFound, "Could not find the requested resource")
 }
+
 /*********************************************************************************************************************/
 /*
 METHOD NOT ALLOWED ERROR RESPONSE
@@ -79,7 +83,7 @@ Called methodNotAllowedResponse by author
 The methodNotAllowedResponse() method will be used to send a 405 Method Not Allowed
 status code and JSON response to the client. Notice that it implements the http.HandlerFunc type.
 This is intentional, because, we will pass this to the router object created with httprouter.new
-in our app.router method. 
+in our app.router method.
 */
 func (appPtr *application) methodNotAllowedHandler(w http.ResponseWriter, r *http.Request) {
 	// send an error explaining we could not find the requested resource
@@ -101,12 +105,13 @@ func (appPtr *application) badRequestResponse(w http.ResponseWriter, r *http.Req
 /*********************************************************************************************************************/
 /*
 FAILED VALIDATION RESPONSE
-writes a 422 Unprocessable Entity and the contents of the errors map from our new Validator type as a JSON response 
+writes a 422 Unprocessable Entity and the contents of the errors map from our new Validator type as a JSON response
 body.
 */
 func (appPtr *application) failedValidationResponse(w http.ResponseWriter, r *http.Request, validationErrors map[string]string) {
 	appPtr.errorResponse(w, r, http.StatusUnprocessableEntity, validationErrors)
 }
+
 /*********************************************************************************************************************/
 /*
 EDIT CONFLICT RESPONSE
@@ -118,6 +123,7 @@ func (appPtr *application) editConflictResponse(w http.ResponseWriter, r *http.R
 	// send an error explaining we could not find the requested resource
 	appPtr.errorResponse(w, r, http.StatusConflict, "trying to update a changed or deleted movie - try again!")
 }
+
 /*********************************************************************************************************************/
 /*
 GLOBAL RATE LIMIT EXCEEDED RESPONSE
@@ -127,6 +133,7 @@ func (appPtr *application) globalRateLimitExceededResponse(w http.ResponseWriter
 	//send an error to try again shortly
 	appPtr.errorResponse(w, r, http.StatusTooManyRequests, "our servers are currently handling a lot of requests - try again shortly")
 }
+
 /*********************************************************************************************************************/
 /*
 RATE LIMIT EXCEEDED RESPONSE
@@ -137,6 +144,7 @@ func (appPtr *application) rateLimitExceededResponse(w http.ResponseWriter, r *h
 	// send an error to try again later
 	appPtr.errorResponse(w, r, http.StatusTooManyRequests, "too many requests - try again later")
 }
+
 /*********************************************************************************************************************/
 /*
 INVALID CREDENTIALS RESPONSE
@@ -147,6 +155,7 @@ func (appPtr *application) invalidCredentialsResponse(w http.ResponseWriter, r *
 	// send an error to try again later
 	appPtr.errorResponse(w, r, http.StatusUnauthorized, "invalid credentials")
 }
+
 /*********************************************************************************************************************/
 /*
 INVALID AUTHENTICATION TOKEN RESPONSE
@@ -158,6 +167,7 @@ func (appPtr *application) invalidAuthenticationTokenResponse(w http.ResponseWri
 	w.Header().Set("WWW-Authenticate", "Bearer")
 	appPtr.errorResponse(w, r, http.StatusUnauthorized, "invalid or missing authentication token")
 }
+
 /*********************************************************************************************************************/
 /*
 AUTHENTICATION REQUIRED RESPONSE
@@ -165,9 +175,10 @@ This is for when an anonymous (unactivated and unauthenticated) user tries to ac
 activation and authentication - These explanations need refining
 */
 func (app *application) authenticationRequiredResponse(w http.ResponseWriter, r *http.Request) {
-    message := "you must be authenticated to access this resource"
-    app.errorResponse(w, r, http.StatusUnauthorized, message)
+	message := "you must be authenticated to access this resource"
+	app.errorResponse(w, r, http.StatusUnauthorized, message)
 }
+
 /*********************************************************************************************************************/
 /*
 ACTIVATION REQUIRED RESPONSE
@@ -175,9 +186,10 @@ This is for when an activated but unauthenticated user tries to access an endpoi
 authentication - These explanations need refining
 */
 func (app *application) activationRequiredResponse(w http.ResponseWriter, r *http.Request) {
-    message := "your user account must be activated to access this resource"
-    app.errorResponse(w, r, http.StatusForbidden, message)
+	message := "your user account must be activated to access this resource"
+	app.errorResponse(w, r, http.StatusForbidden, message)
 }
+
 /*********************************************************************************************************************/
 /*
 NOT PERMITTED RESPONSE
@@ -185,9 +197,9 @@ This is for when a user without the necessary permission (such as "movie:read" o
 tries to perform this action on an endpoint that requires the necessary permission
 */
 func (app *application) notPermittedResponse(w http.ResponseWriter, r *http.Request) {
-    message := `
+	message := `
 		You are not permitted to perform this action.
 		Activate your account for full privilege
 	`
-    app.errorResponse(w, r, http.StatusForbidden, message)
+	app.errorResponse(w, r, http.StatusForbidden, message)
 }

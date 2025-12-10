@@ -31,31 +31,33 @@ where empty is defined as being:
 - A nil pointer or a nil interface value
 */
 type Movie struct {
-	ID        int64 		`json:"id"`
-	CreatedAt time.Time		`json:"-"`
-	Title string			`json:"title"`
-	Year int32				`json:"year,omitempty"`
-	Runtime Runtime 		`json:"runtime,omitempty"`//Movie runtime (in minutes) 
-	Genres []string			`json:"genres,omitempty"`
-	Version int32 			`json:"version,omitempty"`//version number is initially 1 and will be incremented everytime
-					//info about the movie is updated
-	TotalMovies int			`json:"-"`
+	ID        int64     `json:"id"`
+	CreatedAt time.Time `json:"-"`
+	Title     string    `json:"title"`
+	Year      int32     `json:"year,omitempty"`
+	Runtime   Runtime   `json:"runtime,omitempty"` //Movie runtime (in minutes)
+	Genres    []string  `json:"genres,omitempty"`
+	Version   int32     `json:"version,omitempty"` //version number is initially 1 and will be incremented everytime
+	//info about the movie is updated
+	TotalMovies int `json:"-"`
 }
+
 /*********************************************************************************************************************/
 /*
 MOVIE INPUT
 Data we expect from client when they want to create a movie
-Use pointers for the Title, Year and Runtime fields. This will be 
-nil if there is no corresponding key in the JSON. We don't need 
-pointers for the Genres field, because slices already have the 
+Use pointers for the Title, Year and Runtime fields. This will be
+nil if there is no corresponding key in the JSON. We don't need
+pointers for the Genres field, because slices already have the
 zero-value nil.
 */
 type MovieInput struct {
-		Title   string   `json:"title"`
-        Year    int32    `json:"year"`
-        Runtime Runtime    `json:"runtime"`
-        Genres  []string `json:"genres"`
+	Title   string   `json:"title"`
+	Year    int32    `json:"year"`
+	Runtime Runtime  `json:"runtime"`
+	Genres  []string `json:"genres"`
 }
+
 /*********************************************************************************************************************/
 /*
 MOVIE MODEL
@@ -65,7 +67,7 @@ MOVIE MODEL
 //the movie database. The DB connection pool it wraps will do the heavy lifting, inside these methods, hence
 //why we made the engineering decision to include it as a field in the struct, basically, it is a dependency that
 //its methods will need, therefore we're doing some sort of dependency injection, here.
-type MovieModel struct{
+type MovieModel struct {
 	DBPtr *sql.DB
 }
 
@@ -74,7 +76,7 @@ CREATE (INSERT) MOVIE - Create a new movie in the database, return an error
 should the operation fail
 */
 func (movieModel MovieModel) InsertMovie(moviePtr *Movie) error {
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 3 * time.Second)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancelFunc()
 
 	rowPtr := movieModel.DBPtr.QueryRowContext(
@@ -86,21 +88,21 @@ func (movieModel MovieModel) InsertMovie(moviePtr *Movie) error {
 
 	//scan result of sql query into the movie pointed at by moviePtr
 	//return an error if unsuccessful
- 	return rowPtr.Scan(&moviePtr.ID, &moviePtr.CreatedAt, &moviePtr.Version)
+	return rowPtr.Scan(&moviePtr.ID, &moviePtr.CreatedAt, &moviePtr.Version)
 }
 
 /*
 READ (GET) MOVIE (Get by Author; movieModel - Movie by author)
 Get a movie from the database, given the movie id
 */
-func(movieModel MovieModel) GetMovie(id int64) (*Movie, error) {
+func (movieModel MovieModel) GetMovie(id int64) (*Movie, error) {
 	// The PostgreSQL bigserial type that we're using for the movie ID starts
-    // auto-incrementing at 1 by default, so we know that no movies will have ID values
-    // less than that. To avoid making an unnecessary database call, we take a shortcut
-    // and return an ErrRecordNotFound error straight away.
-    if id < 1 {
-        return nil, ErrRecordNotFound
-    }
+	// auto-incrementing at 1 by default, so we know that no movies will have ID values
+	// less than that. To avoid making an unnecessary database call, we take a shortcut
+	// and return an ErrRecordNotFound error straight away.
+	if id < 1 {
+		return nil, ErrRecordNotFound
+	}
 	// Create a movie variable where we will copy the result of
 	// the db query into.
 	var movie Movie
@@ -108,31 +110,31 @@ func(movieModel MovieModel) GetMovie(id int64) (*Movie, error) {
 		SELECT * FROM movies WHERE id = $1
 	`
 
-	ctx,cancelFunc := context.WithTimeout(context.Background(), (3 * time.Second))
+	ctx, cancelFunc := context.WithTimeout(context.Background(), (3 * time.Second))
 	defer cancelFunc()
 
 	rowPtr := movieModel.DBPtr.QueryRowContext(
 		ctx,
-		query, 
+		query,
 		id,
 	)
-	// scan the response data into the fields of the  Movie struct. 
-	// Importantly, notice that we need to convert the scan target for the 
-    // genres column using the pq.Array() adapter function again.
+	// scan the response data into the fields of the  Movie struct.
+	// Importantly, notice that we need to convert the scan target for the
+	// genres column using the pq.Array() adapter function again.
 	// which was used in the insert function on the genres column
-	err := rowPtr.Scan(       
+	err := rowPtr.Scan(
 		&movie.ID,
-        &movie.CreatedAt,
-        &movie.Title,
-        &movie.Year,
-        &movie.Runtime,
-        pq.Array(&movie.Genres),
-        &movie.Version,
+		&movie.CreatedAt,
+		&movie.Title,
+		&movie.Year,
+		&movie.Runtime,
+		pq.Array(&movie.Genres),
+		&movie.Version,
 	)
 
-    // Handle any errors. If there was no matching movie found, Scan() will return 
-    // a sql.ErrNoRows error. We check for this and return our custom ErrRecordNotFound 
-    // error instead.
+	// Handle any errors. If there was no matching movie found, Scan() will return
+	// a sql.ErrNoRows error. We check for this and return our custom ErrRecordNotFound
+	// error instead.
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrRecordNotFound
@@ -143,24 +145,24 @@ func(movieModel MovieModel) GetMovie(id int64) (*Movie, error) {
 }
 
 /*
-UPDATE MOVIE - UpdateMovie a movie in the database, return an error should the operation 
-fail. This accepts a movie argument, this argument will however be different to that we 
-pass in during create, this movie argument MUST contain an ID, (we know that it will 
-infact surely contain an ID, cos the movie we're passing in will be the movie we got from 
-the db, from calling GETMOVIE prior, using the id passed from the request). All errors 
-with gettinig the movie successfully from the db are handled upstream from this stage, 
-so that whatever movie we do pass to the UpdateMovie function is coming fresh from the DB 
-and will indeed contain an ID, which we use to update the specific movie in the DB. 
+UPDATE MOVIE - UpdateMovie a movie in the database, return an error should the operation
+fail. This accepts a movie argument, this argument will however be different to that we
+pass in during create, this movie argument MUST contain an ID, (we know that it will
+infact surely contain an ID, cos the movie we're passing in will be the movie we got from
+the db, from calling GETMOVIE prior, using the id passed from the request). All errors
+with gettinig the movie successfully from the db are handled upstream from this stage,
+so that whatever movie we do pass to the UpdateMovie function is coming fresh from the DB
+and will indeed contain an ID, which we use to update the specific movie in the DB.
 
-However, in the argument to Insert, the movie we pass will not contain an ID and must 
-contain all the arguments in order not to violate the NOT NULL constraints we have in 
+However, in the argument to Insert, the movie we pass will not contain an ID and must
+contain all the arguments in order not to violate the NOT NULL constraints we have in
 our database.
 */
 func (movieModel MovieModel) UpdateMovie(moviePtr *Movie) error {
 	//query to update required fields, we return * from this query
 	//because we'll be using the method QueryRow, which requires
 	//that we return one row of results at least
-    query := `
+	query := `
 		UPDATE movies
 		SET title = $1, year = $2, 
 		runtime = $3, genres = $4,
@@ -169,7 +171,7 @@ func (movieModel MovieModel) UpdateMovie(moviePtr *Movie) error {
 		RETURNING *
 	`
 
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 3 * time.Second)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancelFunc()
 	//execute the query with the appropriate arguments, notice that
 	//we're also updating the version by 1 from the previuos value
@@ -177,35 +179,35 @@ func (movieModel MovieModel) UpdateMovie(moviePtr *Movie) error {
 	//Refer notes(1) for notes on optimistic concurrency
 	rowPtr := movieModel.DBPtr.QueryRowContext(
 		ctx,
-		query, 
-		moviePtr.Title, 
-		moviePtr.Year, 
-		moviePtr.Runtime, 
+		query,
+		moviePtr.Title,
+		moviePtr.Year,
+		moviePtr.Runtime,
 		pq.Array(moviePtr.Genres),
 		moviePtr.ID,
 		moviePtr.Version,
 	)
 
 	//Scan the row into the moviePtr and handle any potential errors
-	err := rowPtr.Scan(       
+	err := rowPtr.Scan(
 		&moviePtr.ID,
-        &moviePtr.CreatedAt,
-        &moviePtr.Title,
-        &moviePtr.Year,
-        &moviePtr.Runtime,
-        pq.Array(&moviePtr.Genres),
-        &moviePtr.Version,
+		&moviePtr.CreatedAt,
+		&moviePtr.Title,
+		&moviePtr.Year,
+		&moviePtr.Runtime,
+		pq.Array(&moviePtr.Genres),
+		&moviePtr.Version,
 	)
-	
+
 	//I must say it seems absurt to think that an errRecordNotFound
 	//error will ever be returned, given the fact that the id that
 	//was used for the update operation was provided by the DB itself
 	if err != nil {
 		switch {
-			case errors.Is(err, sql.ErrNoRows):
-				return ErrEditConflict
-			default:
-				return err
+		case errors.Is(err, sql.ErrNoRows):
+			return ErrEditConflict
+		default:
+			return err
 		}
 	}
 
@@ -228,12 +230,12 @@ func (movieModel MovieModel) Delete(id int64) (*Movie, error) {
 
 	var deletedMovie Movie
 
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 3 * time.Second)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancelFunc()
 
 	err := movieModel.DBPtr.QueryRowContext(ctx, query, id).Scan(
-		&deletedMovie.ID, 
-		&deletedMovie.Title, 
+		&deletedMovie.ID,
+		&deletedMovie.Title,
 		&deletedMovie.Year,
 		&deletedMovie.Runtime,
 		pq.Array(&deletedMovie.Genres),
@@ -242,40 +244,40 @@ func (movieModel MovieModel) Delete(id int64) (*Movie, error) {
 	fmt.Println(err)
 	if err != nil {
 		switch {
-			case errors.Is(err, sql.ErrNoRows):
-				return nil, ErrRecordNotFound
-			default:
-				return nil, err
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
 		}
 	}
-    return &deletedMovie, nil
+	return &deletedMovie, nil
 }
 
-//I didn't include the author's code to prevent SQL injection, not currently convinced that this is
-//absolutely needed.
-//Read notes(2) for insigt into how the GetAllMovies works
+// I didn't include the author's code to prevent SQL injection, not currently convinced that this is
+// absolutely needed.
+// Read notes(2) for insigt into how the GetAllMovies works
 func (movieModel MovieModel) GetAllMovies(title string, genres []string, filters Filters) ([]*Movie, error) {
 	orderMethod := ""
 
 	//filters.Sort could be "-year" or "year", the two branches handle the respective cases
 	switch strings.HasPrefix(filters.Sort, "-") {
-		case true:
-			sortString, _ := strings.CutPrefix(filters.Sort, "-") //sortString = "year" now
-			orderMethod = fmt.Sprintf("%s DESC", sortString) //orderMethod = "year DESC"
-			if sortString != "id" {
-				orderMethod += ", id" //orderMethod = "year DESC, id"
-			}
-		case false:
-			orderMethod = filters.Sort //
-			if filters.Sort != "id" {
-				orderMethod += ", id" //orderMethod = "year, id"
-			}
+	case true:
+		sortString, _ := strings.CutPrefix(filters.Sort, "-") //sortString = "year" now
+		orderMethod = fmt.Sprintf("%s DESC", sortString)      //orderMethod = "year DESC"
+		if sortString != "id" {
+			orderMethod += ", id" //orderMethod = "year DESC, id"
+		}
+	case false:
+		orderMethod = filters.Sort //
+		if filters.Sort != "id" {
+			orderMethod += ", id" //orderMethod = "year, id"
+		}
 	}
 
 	fmt.Println(orderMethod)
 
-    // Use full-text search for the title filter.
-    query := fmt.Sprintf(`
+	// Use full-text search for the title filter.
+	query := fmt.Sprintf(`
         SELECT COUNT(*) OVER(), id, created_at, title, year, runtime, genres, version
         FROM movies
         WHERE (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '') 
@@ -284,7 +286,7 @@ func (movieModel MovieModel) GetAllMovies(title string, genres []string, filters
 		OFFSET $3 LIMIT $4
 		`, orderMethod)
 
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 3 * time.Second)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancelFunc()
 
 	args := []any{title, pq.Array(genres), filters.offset(), filters.limit()}
@@ -294,7 +296,7 @@ func (movieModel MovieModel) GetAllMovies(title string, genres []string, filters
 		return nil, err
 	}
 	// Importantly, defer a call to rows.Close() to ensure that the resultset is closed
-    // before GetAll() returns.
+	// before GetAll() returns.
 	defer movieRows.Close()
 
 	moviePtrs := []*Movie{}
@@ -304,10 +306,10 @@ func (movieModel MovieModel) GetAllMovies(title string, genres []string, filters
 	for movieRows.Next() {
 		var movie Movie
 		//scan the current row into a movie struct
-		err := movieRows.Scan( 
+		err := movieRows.Scan(
 			&movie.TotalMovies,
 			&movie.ID, &movie.CreatedAt, &movie.Title, &movie.Year,
-        	&movie.Runtime, pq.Array(&movie.Genres), &movie.Version,
+			&movie.Runtime, pq.Array(&movie.Genres), &movie.Version,
 		)
 		//return if an error is encountered
 		if err != nil {
@@ -317,15 +319,16 @@ func (movieModel MovieModel) GetAllMovies(title string, genres []string, filters
 		moviePtrs = append(moviePtrs, &movie)
 	}
 
-    // When the rows.Next() loop has finished, call rows.Err() to retrieve any error 
-    // that was encountered during the iteration.
+	// When the rows.Next() loop has finished, call rows.Err() to retrieve any error
+	// that was encountered during the iteration.
 	if err := movieRows.Err(); err != nil {
 		return nil, err
 	}
-	
+
 	// If everything went OK, then return the slice of movies.
 	return moviePtrs, nil
 }
+
 /*********************************************************************************************************************/
 /*
 VALIDATE USER'S INPUT
@@ -335,26 +338,26 @@ func ValidateMovie(movieValidatorPtr *validator.Validator, movieDataPtr *Movie) 
 
 	// Ensure Genres Slice contains between 1 and 5 unique genres, as contained in our allowed genres list
 	movieValidatorPtr.Check(
-		validator.Unique(movieDataPtr.Genres), 
-		"genres", 
+		validator.Unique(movieDataPtr.Genres),
+		"genres",
 		"duplicate genres not allowed",
 	)
 	movieValidatorPtr.Check(
-		len(movieDataPtr.Genres) > 0 && len(movieDataPtr.Genres) <= 5,  
-		"genres", 
+		len(movieDataPtr.Genres) > 0 && len(movieDataPtr.Genres) <= 5,
+		"genres",
 		"genre should contain between 1 and 5 unique genres",
 	)
 	permittedGenres(movieDataPtr.Genres, movieValidatorPtr)
 
 	// Ensure Title is not empty and not greater than 500 bytes in length
 	movieValidatorPtr.Check(
-		movieDataPtr.Title != "", 
-		"title", 
+		movieDataPtr.Title != "",
+		"title",
 		"movie title cannot be empty",
 	)
 	movieValidatorPtr.Check(
-		len([]byte(movieDataPtr.Title)) <= 500, 
-		"title", 
+		len([]byte(movieDataPtr.Title)) <= 500,
+		"title",
 		"movie title must not be > 500 bytes long",
 	)
 
@@ -363,13 +366,13 @@ func ValidateMovie(movieValidatorPtr *validator.Validator, movieDataPtr *Movie) 
 
 	// Ensure movie year is not empty and must be between 1888 and current year
 	movieValidatorPtr.Check(
-		movieDataPtr.Year != 0, 
-		"year", 
+		movieDataPtr.Year != 0,
+		"year",
 		fmt.Errorf("invalid movie year: %d. year must be from 1888 to date", movieDataPtr.Year).Error(),
 	)
 	movieValidatorPtr.Check(
-		movieDataPtr.Year >=  1888 && int(movieDataPtr.Year) <= time.Now().Year(), 
-		"year",  
+		movieDataPtr.Year >= 1888 && int(movieDataPtr.Year) <= time.Now().Year(),
+		"year",
 		fmt.Errorf("invalid movie year: %d. year must be from 1888 to date", movieDataPtr.Year).Error(),
 	)
 }
@@ -383,7 +386,7 @@ func permittedGenres(genres []string, movieValidatorPtr *validator.Validator) {
 	for _, genre := range genres {
 		if !validator.PermittedValue(genre, AllowedGenres...) {
 			movieValidatorPtr.AddError(
-				"genres", 
+				"genres",
 				fmt.Sprintf("must not contain values aside the following: %+v", AllowedGenres),
 			)
 			return
@@ -396,7 +399,7 @@ func permittedGenres(genres []string, movieValidatorPtr *validator.Validator) {
 NOTES:
 1 - OPTIMISTIC CONCURRENCY IN UPDATES
 Due to the behaviour of go in processing requests, if the server receives two separate requests to update the same
-resource at the same time, we will end up with a race condition because both requests will try and update the 
+resource at the same time, we will end up with a race condition because both requests will try and update the
 resource without any synchronization refer to ch8.2 Let's Go further for further explanation. What we can do is,
 since we increment the version number with every update, this tells us if the data has been updated since the time
 we read it last from the DB, in that case, we only allow an update operation to pass if the version number in the

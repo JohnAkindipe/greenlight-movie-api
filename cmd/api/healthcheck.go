@@ -13,14 +13,14 @@ in the application struct when we initialize it in main().
 
 HANDLES GET /v1/healthcheck
 */
-func (appPtr *application) healthcheckHandler (w http.ResponseWriter, r *http.Request) {
-/*********************************************************************************************************************/
+func (appPtr *application) healthcheckHandler(w http.ResponseWriter, r *http.Request) {
+	/*********************************************************************************************************************/
 	//USING JSON MARSHALLING
 	//wrap the data with the envelope
-	wrappedData := envelope{ 
+	wrappedData := envelope{
 		"status": "available",
 		"system_info": map[string]string{
-			"version": version,
+			"version":     version,
 			"environment": appPtr.config.env,
 		},
 	}
@@ -30,7 +30,7 @@ func (appPtr *application) healthcheckHandler (w http.ResponseWriter, r *http.Re
 	// }
 
 	// Pass the map to the app.writeJSON method. If there was an error, we log it and send the client
-    // a generic error message.
+	// a generic error message.
 	err := appPtr.writeJSON(w, http.StatusOK, wrappedData, nil)
 	if err != nil {
 		// send json-formatted error to client

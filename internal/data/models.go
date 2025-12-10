@@ -8,9 +8,10 @@ import (
 // Define a custom ErrRecordNotFound error. We'll return this from our Get() method when
 // looking up a movie that doesn't exist in our database.
 var (
-    ErrRecordNotFound = errors.New("record not found")
-    ErrEditConflict = errors.New("edit conflict")
+	ErrRecordNotFound = errors.New("record not found")
+	ErrEditConflict   = errors.New("edit conflict")
 )
+
 /*********************************************************************************************************************/
 /*
 MODELS
@@ -24,10 +25,10 @@ We’re going to wrap our MovieModel in a parent Models struct.  it has the bene
 // Create a Models struct which wraps the MovieModel. We'll add other models to this,
 // like a UserModel and PermissionModel, as our build progresses.
 type Models struct {
-    MovieModel MovieModel
-    UserModel UserModel
-    TokenModel TokenModel
-    PermissionModel PermissionModel
+	MovieModel      MovieModel
+	UserModel       UserModel
+	TokenModel      TokenModel
+	PermissionModel PermissionModel
 }
 
 /*
@@ -37,10 +38,10 @@ the initialized MovieModel. Notice that the function is called NewModel but retu
 a "Models" object
 */
 func NewModel(dbPtr *sql.DB) Models {
-    return Models{
-        MovieModel: MovieModel{DBPtr: dbPtr},
-        UserModel: UserModel{DBPtr: dbPtr},
-        TokenModel: TokenModel{DBPtr: dbPtr},
-        PermissionModel: PermissionModel{DBPtr: dbPtr},
-    }
+	return Models{
+		MovieModel:      MovieModel{DBPtr: dbPtr},
+		UserModel:       UserModel{DBPtr: dbPtr},
+		TokenModel:      TokenModel{DBPtr: dbPtr},
+		PermissionModel: PermissionModel{DBPtr: dbPtr},
+	}
 }

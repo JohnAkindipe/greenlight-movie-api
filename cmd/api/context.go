@@ -17,7 +17,7 @@ const userContextKey = contextKey("user")
 // The contextSetUser() method returns a new copy of the request with the provided
 // User struct added to the context. Note that we use our userContextKey constant as the
 // key.
-func(appPtr *application) contextSetUser(r *http.Request, userPtr *data.User) *http.Request {
+func (appPtr *application) contextSetUser(r *http.Request, userPtr *data.User) *http.Request {
 	ctx := context.WithValue(context.Background(), userContextKey, userPtr)
 	return r.WithContext(ctx)
 }
@@ -26,7 +26,7 @@ func(appPtr *application) contextSetUser(r *http.Request, userPtr *data.User) *h
 // time that we'll use this helper is when we logically expect there to be User struct
 // value in the context, and if it doesn't exist it will firmly be an 'unexpected' error.
 // As we discussed earlier in the book, it's OK to panic in those circumstances.
-func(appPtr *application) contextGetUser(r *http.Request) *data.User {
+func (appPtr *application) contextGetUser(r *http.Request) *data.User {
 	user := r.Context().Value(userContextKey)
 	userPtr, ok := user.(*data.User)
 	if !ok {

@@ -13,7 +13,7 @@ use this later in the book). This regular expression pattern is taken from
 https://html.spec.whatwg.org/#valid-e-mail-address.
 */
 var (
-    EmailRX = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
+	EmailRX = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
 )
 
 /*********************************************************************************************************************/
@@ -26,7 +26,7 @@ type Validator struct {
 CREATE NEW VALIDATOR
 */
 func New() *Validator {
-	return &Validator{ Errors: make(map[string]string)}
+	return &Validator{Errors: make(map[string]string)}
 }
 
 /*
@@ -42,7 +42,7 @@ AddError adds an error message to the VALIDATOR.ERRORS map (so long as no entry 
 the given key).
 */
 func (vPtr *Validator) AddError(key, errorMsg string) {
-	if _, exists := vPtr.Errors[key]; !exists{
+	if _, exists := vPtr.Errors[key]; !exists {
 		vPtr.Errors[key] = errorMsg
 	}
 }
@@ -56,8 +56,9 @@ func (vPtr *Validator) Check(ok bool, key, message string) {
 		vPtr.AddError(key, message)
 	}
 }
+
 /*********************************************************************************************************************/
-/* 
+/*
 PERMITTED VALUES
 Generic function which returns true if a specific value is in a list of permitted values.
 */
@@ -65,7 +66,7 @@ func PermittedValue[T comparable](value T, permittedValues ...T) bool {
 	return slices.Contains(permittedValues, value)
 }
 
-/* 
+/*
 MATCHES
 Matches returns true if a string value matches a specific regexp pattern.
 */
@@ -73,24 +74,27 @@ func Matches(value string, regexPattern *regexp.Regexp) bool {
 	return regexPattern.MatchString(value)
 }
 
-/* 
+/*
 UNIQUE
 Generic function which returns true if all values in a slice are unique.
 */
 func Unique[T cmp.Ordered](sliceOfValues []T) bool {
 	slices.Sort(sliceOfValues)
 	/*
-	The slice is sorted, compare every element in the array with the next element
-	if they are the same, they are indeed duplicates. sorting slice is very important.
+		The slice is sorted, compare every element in the array with the next element
+		if they are the same, they are indeed duplicates. sorting slice is very important.
 	*/
 	for i, value := range sliceOfValues {
-		if i == len(sliceOfValues) - 1 { continue }
-		if value == sliceOfValues[i + 1] {
+		if i == len(sliceOfValues)-1 {
+			continue
+		}
+		if value == sliceOfValues[i+1] {
 			return false
 		}
 	}
 	return true
 }
+
 /*********************************************************************************************************************/
 /*
 NOTES
