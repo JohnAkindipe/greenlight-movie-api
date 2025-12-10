@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"expvar"
 	"flag"
+	"fmt"
 	"greenlight-movie-api/internal/data"
 	"greenlight-movie-api/internal/mailer"
+	"greenlight-movie-api/internal/vcs"
 	"log/slog"
 	"os"
 	"runtime"
@@ -23,11 +25,13 @@ import (
 // VERSION CONSTANT
 // hard coded version constant, we'll automatically determine this later
 const (
-	version         = "1.0.0"
 	CORS_USAGE_FLAG = `trusted cors origins, origins should be separated 
 by spaces e.g https://www.example.com https://staging.example.com`
 )
 
+var (
+	version = vcs.Version()
+)
 /*********************************************************************************************************************/
 // SETUP CONFIGURATION
 // Define a config struct to hold all the configuration settings for our application.
@@ -155,8 +159,7 @@ func main() {
 	/*********************************************************************************************************************/
 	//LOAD ENVIRONMENT VARIABLES
 	// Log error and exit if there was an error loading the environment variables
-	err := godotenv.Load()
-
+	err := godotenv.Load(`C:\Users\hp\Desktop\Web Dev\Projects\GoLang\greenlight-movie-api\cmd\api\.env`)
 	if err != nil {
 		logger.Error("Failed to load env variables", "err", err.Error())
 		os.Exit(1)
@@ -209,7 +212,15 @@ func main() {
 	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Greenlight <no-reply@greenlight.akindipejohn.net>", "SMTP sender")
 	flag.StringVar(&cfg.jwt.secret, "jwt-secret", os.Getenv("JWT_SECRET"), "jwt secret key")
 	flag.Func("cors-trusted-origins", CORS_USAGE_FLAG, verifyCorsFlag)
+    displayVersion := flag.Bool("version", false, "Display version and exit") //Create a version boolean flag with the default value of false.
 	flag.Parse()
+
+	// If the version flag value is true, then print out the version number and
+    // immediately exit.
+	if *displayVersion {
+        fmt.Printf("Version:\t%s\n", version)
+        os.Exit(0)
+    }
 	/*********************************************************************************************************************/
 	// DATABASE SETUP
 	// Call the openDB() helper function (see below) to create the connection pool,
