@@ -106,3 +106,25 @@ or secrets
 
 In fact, it’s arguably best to use crypto/rand as standard practice. Only opt for using math/rand in specific scenarios 
 where you are certain that a deterministic PRNG is acceptable, and you actively need the faster performance of math/rand.
+-------------------------------------------------------------------------------------------------------------------------
+SSH KEY GENERATION
+Command to generate ssh key pair: ssh-keygen -t rsa -b 4096 -C "akindipejohn2017@gmail.com"
+passphrase: akindipe123
+ssh-file: C:\Users\hp/.ssh/id_rsa_greenlight (pub - C:\Users\hp/.ssh/id_rsa_greenlight.pub)
+ssh root@<some ip> to ssh into an ssh server (with specified ip) as root user.
+-------------------------------------------------------------------------------------------------------------------------
+DIGITAL OCEAN DROPLET
+Droplet Ip: 64.227.38.217
+Configuration:
+- Create a remote setup folder
+1) mkdir remote/setup
+- Create a shell script to automate some tasks
+2) Shell script at remote/setup/01.sh
+This shell script contains useful commands.
+
+USEFUL COMMANDS
+I used the command "scp -r ./remote/setup root@64.227.38.217:/root" to
+copy the contents of the remote/setup folder to the server at the
+root directory. I have confirmed that this copy was successful.
+The server contains the 01.sh script. I will pick up from here
+next time.
