@@ -112,6 +112,9 @@ Command to generate ssh key pair: ssh-keygen -t rsa -b 4096 -C "akindipejohn2017
 passphrase: akindipe123
 ssh-file: C:\Users\hp/.ssh/id_rsa_greenlight (pub - C:\Users\hp/.ssh/id_rsa_greenlight.pub)
 ssh root@<some ip> to ssh into an ssh server (with specified ip) as root user.
+
+It appears one has to start the ssh-agent for each session and add the private key
+to the agent in order to authenticate with the server at the start of every session.
 -------------------------------------------------------------------------------------------------------------------------
 DIGITAL OCEAN DROPLET
 Droplet Ip: 64.227.38.217
@@ -121,10 +124,15 @@ Configuration:
 - Create a shell script to automate some tasks
 2) Shell script at remote/setup/01.sh
 This shell script contains useful commands.
-
+-------------------------------------------------------------------------------------------------------------------------
 USEFUL COMMANDS
 I used the command "scp -r ./remote/setup root@64.227.38.217:/root" to
 copy the contents of the remote/setup folder to the server at the
 root directory. I have confirmed that this copy was successful.
 The server contains the 01.sh script. I will pick up from here
 next time.
+-------------------------------------------------------------------------------------------------------------------------
+REMOTE SSH SERVER CONFIGURATIONS
+Password for db on server is: "akindipe123"
+Password for greenlight user is: "akindipe123"
+- We created the user "greenlight" in the setup script we ran for the server.

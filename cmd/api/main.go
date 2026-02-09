@@ -159,10 +159,12 @@ func main() {
 	/*********************************************************************************************************************/
 	//LOAD ENVIRONMENT VARIABLES
 	// Log error and exit if there was an error loading the environment variables
-	err := godotenv.Load(`C:\Users\hp\Desktop\Web Dev\Projects\GoLang\greenlight-movie-api\cmd\api\.env`)
-	if err != nil {
-		logger.Error("Failed to load env variables", "err", err.Error())
-		os.Exit(1)
+	if runtime.GOOS == "windows" {
+		err := godotenv.Load(`C:\Users\hp\Desktop\Web Dev\Projects\GoLang\greenlight-movie-api\cmd\api\.env`)
+		if err != nil {
+			logger.Error("Failed to load env variables", "err", err.Error())
+			os.Exit(1)
+		}
 	}
 	// Get the maxIdleConns, maxOpenConns, maxGlobalBurstReq, globalReqFillRate
 	// maxIndividualBurstReq, individualReqFillRate from the env variables
