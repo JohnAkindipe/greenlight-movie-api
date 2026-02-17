@@ -115,6 +115,8 @@ ssh root@<some ip> to ssh into an ssh server (with specified ip) as root user.
 
 It appears one has to start the ssh-agent for each session and add the private key
 to the agent in order to authenticate with the server at the start of every session.
+
+ssh 
 -------------------------------------------------------------------------------------------------------------------------
 DIGITAL OCEAN DROPLET
 Droplet Ip: 64.227.38.217
@@ -136,3 +138,47 @@ REMOTE SSH SERVER CONFIGURATIONS
 Password for db on server is: "akindipe123"
 Password for greenlight user is: "akindipe123"
 - We created the user "greenlight" in the setup script we ran for the server.
+-------------------------------------------------------------------------------------------------------------------------
+USING CADDY FILES
+Hint: Caddyfiles have a lot of available settings and we’ll demonstrate some of the
+more common ones as we progress through this chapter. But if you plan on using
+Caddy in your own production projects, then I recommend reading through the official
+Caddyfile documentation, which is excellent
+-------------------------------------------------------------------------------------------------------------------------
+RECOMMENDED READINGS
+//Useful info for hardening systemd services.
+https://gist.github.com/ageis/f5595e59b1cddb1513d1b425a323db04
+
+//How to use journalctl to view and manipulate systemd logs.
+https://www.digitalocean.com/community/tutorials/how-to-use-journalctl-to-view-and-manipulate-systemd-logs
+
+//Documentation for the man service
+https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html?__goaway_challenge=meta-refresh&__goaway_id=cd4258183b27699111bcab282762aba6
+
+//Understanding systemd units and unit files.
+https://www.digitalocean.com/community/tutorials/understanding-systemd-units-and-unit-files
+-------------------------------------------------------------------------------------------------------------------------
+SSH TUNNEL
+ssh -L :9999:64.227.38.217:4000 greenlight@64.227.38.217. 
+Use this command to create a tunnel from your local machine to the server. 
+This allows access to the server's port 4000
+-------------------------------------------------------------------------------------------------------------------------
+USING A DOMAIN NAME
+The last part of the book discusses how to use a domain name in our caddy file
+instead of an IP address. it's not complex and involves the following:
+- Access to a domain name whose DNS records we can edit.
+- Create an A record for the domain name which points to our droplet IP
+- Change the caddy file to use the domain name instead of the IP address
+- Restart the caddy service to apply the changes
+- Now, when we access the domain name on the browser, it resolves to our droplet IP
+with the header "host: <domain name>"
+- The caddy file recognizes that domain name and is triggered to handle the connection
+- All the above hold true for if we use http, because this will automatically
+direct the request to port 80 where caddy will be listening.
+- For HTTPS requests, we need to do some additional things to allow caddy handle the
+requests.
+-------------------------------------------------------------------------------------------------------------------------
+USING HTTPS WITH CADDY
+- Add your email to the caddy file.
+- Remove the http prefix from the domain name in the caddy file.
+- Restart the caddy service.
